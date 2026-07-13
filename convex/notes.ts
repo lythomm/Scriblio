@@ -119,6 +119,25 @@ export const getNoteById = query({
   },
 });
 
+// Mutation interne pour mettre à jour l'embedding d'une note (tâche de fond sécurisée)
+export const updateNoteEmbedding = internalMutation({
+  args: {
+    id: v.id("notes"),
+    embedding: v.array(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const note = await ctx.db.get(args.id);
+    if (!note) {
+      throw new Error("Note non trouvée.");
+    }
+    await ctx.db.patch(args.id, {
+      embedding: args.embedding,
+    });
+    return args.id;
+  },
+});
+
+
 // Mutations et Requêtes Internes pour les appels depuis les Actions (contexte d'auth non transmis par défaut)
 export const internalCreateNote = internalMutation({
   args: {

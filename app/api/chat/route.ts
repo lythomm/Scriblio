@@ -118,7 +118,7 @@ QUESTION DE L'UTILISATEUR :
 ${query}`;
 
     // 3. Obtenir le stream avec fallback
-    const models = ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"];
+    const models = ["llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"];
     const responseStream = await generateStreamWithRetry(groq, models, systemPrompt);
 
     // 4. Définir le ReadableStream pour Next.js Response

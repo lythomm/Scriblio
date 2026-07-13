@@ -2,7 +2,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import Groq from "groq-sdk";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
@@ -125,7 +125,7 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
 
       const chatCompletion = await generateGroqChatCompletionWithRetry(
         groq,
-        ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"],
+        ["llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"],
         [
           { role: "system", content: systemInstruction },
           { role: "user", content: `Voici la transcription de l'audio :\n"${transcriptText}"` }
@@ -187,23 +187,6 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
         tagsArray = ["autre"];
       }
 
-      // Génération de l'embedding du résumé via Gemini
-      let embeddingArray: number[] | undefined = undefined;
-      try {
-        const embedResponse = await ai.models.embedContent({
-          model: "gemini-embedding-001",
-          contents: summaryText,
-          config: {
-            outputDimensionality: 768,
-          },
-        });
-        if (embedResponse.embeddings?.[0]?.values) {
-          embeddingArray = embedResponse.embeddings[0].values;
-        }
-      } catch (embedErr) {
-        console.error("Erreur de génération d'embedding :", embedErr);
-      }
-
       // Sauvegarde des résultats en base de données via mutation (création ou modification)
       let noteId;
       if (args.noteId) {
@@ -211,17 +194,21 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
           id: args.noteId,
           summary: summaryText,
           tags: tagsArray,
-          embedding: embeddingArray,
           userId,
         });
       } else {
         noteId = await ctx.runMutation(internal.notes.internalCreateNote, {
           summary: summaryText,
           tags: tagsArray,
-          embedding: embeddingArray,
           userId,
         });
       }
+
+      // Planification asynchrone de la génération et de la sauvegarde de l'embedding
+      await ctx.scheduler.runAfter(0, internal.actions.generateAndSaveEmbedding, {
+        noteId,
+        text: summaryText,
+      });
 
       return {
         success: true,
@@ -341,7 +328,7 @@ ${contextText}`;
 
     const chatCompletion = await generateGroqChatCompletionWithRetry(
       groq,
-      ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"],
+      ["llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"],
       [
         { role: "system", content: systemPrompt },
         { role: "user", content: args.query }
@@ -444,6 +431,39 @@ export const transcribeAudio = action({
       } catch (err) {
         console.error("Impossible de supprimer le fichier temporaire :", err);
       }
+    }
+  },
+});
+
+// Action interne pour générer l'embedding via Gemini et l'enregistrer dans la base de données (tâche de fond sécurisée)
+export const generateAndSaveEmbedding = internalAction({
+  args: {
+    noteId: v.id("notes"),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
+      throw new Error("GEMINI_API_KEY n'est pas configuré.");
+    }
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+    try {
+      const embedResponse = await ai.models.embedContent({
+        model: "gemini-embedding-001",
+        contents: args.text,
+        config: {
+          outputDimensionality: 768,
+        },
+      });
+      const embeddingArray = embedResponse.embeddings?.[0]?.values;
+      if (embeddingArray) {
+        await ctx.runMutation(internal.notes.updateNoteEmbedding, {
+          id: args.noteId,
+          embedding: embeddingArray,
+        });
+      }
+    } catch (embedErr) {
+      console.error("Erreur de génération d'embedding en arrière-plan :", embedErr);
     }
   },
 });
