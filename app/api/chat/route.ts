@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 
 export const dynamic = "force-dynamic";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 async function generateStreamWithRetry(
   ai: GoogleGenAI,
@@ -35,10 +34,15 @@ async function generateStreamWithRetry(
 
 export async function POST(req: Request) {
   try {
-    const { userId, query } = await req.json();
+    const { query } = await req.json();
 
-    if (!userId || !query) {
-      return NextResponse.json({ error: "userId et query sont requis" }, { status: 400 });
+    if (!query) {
+      return NextResponse.json({ error: "query est requis" }, { status: 400 });
+    }
+
+    const token = await convexAuthNextjsToken();
+    if (!token) {
+      return NextResponse.json({ error: "Non autorisé. Utilisateur non connecté." }, { status: 401 });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -51,11 +55,16 @@ export async function POST(req: Request) {
 
     const ai = new GoogleGenAI({ apiKey });
 
+    // Instanciation à chaque requête pour éviter les conditions de concurrence sur l'authentification
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!, {
+      auth: token,
+    });
+
     // 1. Recherche RAG des notes sur Convex
     const { matchedNotes } = await convex.action(api.actions.searchNotesForRAG, {
-      userId,
       query,
     });
+
 
     if (!matchedNotes || matchedNotes.length === 0) {
       return new Response(

@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -50,13 +51,16 @@ async function generateContentWithRetry(
 // Action Convex de traitement de l'audio avec le SDK @google/genai
 export const processAudio = action({
   args: {
-    userId: v.string(),
     audioData: v.bytes(), // Fichier audio sous forme d'ArrayBuffer
     mimeType: v.string(), // MimeType du fichier audio (ex: 'audio/webm' ou 'audio/mp3')
     noteId: v.optional(v.id("notes")),
     existingSummary: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ success: boolean; noteId?: string; data?: any; errorType?: string; message?: string }> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé. Utilisateur non connecté.");
+    }
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
@@ -228,7 +232,6 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
       if (args.noteId) {
         noteId = await ctx.runMutation(api.notes.updateNote, {
           id: args.noteId,
-          userId: args.userId,
           summary: summaryText,
           todoList: todoListArray,
           tags: tagsArray,
@@ -236,7 +239,6 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
         });
       } else {
         noteId = await ctx.runMutation(api.notes.createNote, {
-          userId: args.userId,
           summary: summaryText,
           todoList: todoListArray,
           tags: tagsArray,
@@ -278,10 +280,13 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
 // Action Convex de recherche sémantique (RAG) sur l'historique des notes
 export const askScriblio = action({
   args: {
-    userId: v.string(),
     query: v.string(),
   },
   handler: async (ctx, args): Promise<{ answer: string; sources: { id: string; summary: string; createdAt: number }[] }> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé. Utilisateur non connecté.");
+    }
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
@@ -312,8 +317,7 @@ export const askScriblio = action({
     const matchedNotes = [];
     for (const result of searchResults) {
       const note = await ctx.runQuery(api.notes.getNoteById, { id: result._id });
-      // Règle 13 : Validation d'autorisation de propriété
-      if (note && note.userId === args.userId) {
+      if (note) {
         matchedNotes.push(note);
       }
     }
@@ -384,10 +388,13 @@ ${args.query}`
 // Action de recherche pure RAG pour le streaming
 export const searchNotesForRAG = action({
   args: {
-    userId: v.string(),
     query: v.string(),
   },
   handler: async (ctx, args): Promise<{ matchedNotes: any[] }> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé. Utilisateur non connecté.");
+    }
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
@@ -418,8 +425,7 @@ export const searchNotesForRAG = action({
     const matchedNotes = [];
     for (const result of searchResults) {
       const note = await ctx.runQuery(api.notes.getNoteById, { id: result._id });
-      // Règle 13 : Validation d'autorisation de propriété
-      if (note && note.userId === args.userId) {
+      if (note) {
         matchedNotes.push(note);
       }
     }

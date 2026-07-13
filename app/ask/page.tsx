@@ -76,7 +76,6 @@ const renderMarkdown = (text: string) => {
 };
 
 export default function AskPage() {
-  const [userId, setUserId] = useState<string>("");
   const askScriblioAction = useAction(api.actions.askScriblio);
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,13 +84,7 @@ export default function AskPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Charger le userId depuis le localStorage au montage
-  useEffect(() => {
-    const storedId = localStorage.getItem("scriblio_user_id");
-    if (storedId) {
-      setUserId(storedId);
-    }
-  }, []);
+
 
   // Défilement automatique vers le bas lors de l'ajout de messages
   useEffect(() => {
@@ -101,7 +94,7 @@ export default function AskPage() {
   }, [messages, isLoading]);
 
   const handleSubmit = async (textToSend: string) => {
-    if (!textToSend.trim() || isLoading || !userId) return;
+    if (!textToSend.trim() || isLoading) return;
     
     const userQuery = textToSend.trim();
     setInput("");
@@ -118,7 +111,7 @@ export default function AskPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, query: userQuery }),
+        body: JSON.stringify({ query: userQuery }),
       });
 
       if (!response.ok) {

@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
+import { AuthWrapper } from "./AuthWrapper";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
 const inter = Inter({ subsets: ["latin"] });
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Scriblio 🎙️✍️ - Vos notes vocales structurées par l'IA",
@@ -16,10 +20,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
-      <body className={`${inter.className} bg-canvas-soft text-ink antialiased min-h-screen`}>
-        <ConvexClientProvider>{children}</ConvexClientProvider>
-      </body>
-    </html>
+    <ConvexAuthNextjsServerProvider>
+      <html lang="fr">
+        <body className={`${inter.className} bg-canvas-soft text-ink antialiased min-h-screen`}>
+          <ConvexClientProvider>
+            <AuthWrapper>{children}</AuthWrapper>
+          </ConvexClientProvider>
+        </body>
+      </html>
+    </ConvexAuthNextjsServerProvider>
   );
 }
+
+
+
+
+

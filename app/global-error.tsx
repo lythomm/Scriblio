@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 // Ce composant est rendu EN DEHORS du layout racine (et donc hors de tout provider).
 // Il ne doit utiliser aucun hook dépendant de Context (useTheme, useAuth, etc.).
 export default function GlobalError({

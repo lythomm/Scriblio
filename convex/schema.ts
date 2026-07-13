@@ -1,9 +1,11 @@
 import { defineSchema, defineTable } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  ...authTables,
   notes: defineTable({
-    userId: v.string(), // ID unique de l'utilisateur propriétaire de la note
+    userId: v.string(), // ID de l'utilisateur propriétaire (Id<"users"> stocké sous forme de string)
     summary: v.string(), // Résumé / Synthèse
     todoList: v.array(v.object({ text: v.string(), done: v.boolean() })), // Liste des actions avec statut
     tags: v.optional(v.array(v.string())), // Catégories thématiques
@@ -17,3 +19,4 @@ export default defineSchema({
       dimensions: 768, // Modèle text-embedding-004 de Gemini
     }),
 });
+

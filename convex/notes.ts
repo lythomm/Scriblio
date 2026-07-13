@@ -1,10 +1,10 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Mutation pour insérer la note structurée dans la base de données
 export const createNote = mutation({
   args: {
-    userId: v.string(),
     summary: v.string(),
     todoList: v.array(v.object({ text: v.string(), done: v.boolean() })),
     tags: v.array(v.string()),
@@ -12,13 +12,13 @@ export const createNote = mutation({
     embedding: v.optional(v.array(v.float64())),
   },
   handler: async (ctx, args) => {
-    // Règle 13 : Validation d'identité basique pour l'MVP.
-    if (!args.userId) {
-      throw new Error("L'identifiant utilisateur est requis.");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé. Utilisateur non connecté.");
     }
 
     const noteId = await ctx.db.insert("notes", {
-      userId: args.userId,
+      userId,
       summary: args.summary,
       todoList: args.todoList,
       tags: args.tags,
@@ -32,13 +32,14 @@ export const createNote = mutation({
 
 // Requête pour récupérer les notes d'un utilisateur
 export const getNotes = query({
-  args: { userId: v.string() },
-  handler: async (ctx, args) => {
-    if (!args.userId) return [];
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
     
     return await ctx.db
       .query("notes")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
   },
@@ -48,17 +49,23 @@ export const getNotes = query({
 export const deleteNote = mutation({
   args: {
     id: v.id("notes"),
-    userId: v.string(),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé.");
+    }
+
     const note = await ctx.db.get(args.id);
     if (!note) {
       throw new Error("Note non trouvée.");
     }
+    
     // Règle 13 : Validation d'autorisation de propriété
-    if (note.userId !== args.userId) {
+    if (note.userId !== userId) {
       throw new Error("Action non autorisée.");
     }
+
     await ctx.db.delete(args.id);
     return { success: true };
   },
@@ -69,15 +76,20 @@ export const toggleTodo = mutation({
   args: {
     noteId: v.id("notes"),
     index: v.number(),
-    userId: v.string(),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé.");
+    }
+
     const note = await ctx.db.get(args.noteId);
     if (!note) {
       throw new Error("Note non trouvée.");
     }
+    
     // Règle 13 : Validation de propriété
-    if (note.userId !== args.userId) {
+    if (note.userId !== userId) {
       throw new Error("Action non autorisée.");
     }
 
@@ -100,19 +112,24 @@ export const toggleTodo = mutation({
 export const updateNote = mutation({
   args: {
     id: v.id("notes"),
-    userId: v.string(),
     summary: v.string(),
     todoList: v.array(v.object({ text: v.string(), done: v.boolean() })),
     tags: v.array(v.string()),
     embedding: v.optional(v.array(v.float64())),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé.");
+    }
+
     const note = await ctx.db.get(args.id);
     if (!note) {
       throw new Error("Note non trouvée.");
     }
+    
     // Règle 13 : Validation de propriété
-    if (note.userId !== args.userId) {
+    if (note.userId !== userId) {
       throw new Error("Action non autorisée.");
     }
 
@@ -126,10 +143,19 @@ export const updateNote = mutation({
   },
 });
 
-// Requête interne pour récupérer une note par son identifiant
+// Requête pour récupérer une note par son identifiant
 export const getNoteById = query({
   args: { id: v.id("notes") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const note = await ctx.db.get(args.id);
+    if (!note) return null;
+
+    // Règle 13 : Validation de propriété
+    if (note.userId !== userId) return null;
+
+    return note;
   },
 });

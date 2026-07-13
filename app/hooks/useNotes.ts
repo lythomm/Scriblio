@@ -22,19 +22,10 @@ export interface Note {
 }
 
 export function useNotes() {
-  const [userId, setUserId] = useState<string>("");
 
-  useEffect(() => {
-    let storedId = localStorage.getItem("scriblio_user_id");
-    if (!storedId) {
-      storedId = "user_" + Math.random().toString(36).substring(2, 11);
-      localStorage.setItem("scriblio_user_id", storedId);
-    }
-    setUserId(storedId);
-  }, []);
 
   // Récupération de l'historique en temps réel via Convex Query
-  const notes = useQuery(api.notes.getNotes, userId ? { userId } : "skip") || [];
+  const notes = useQuery(api.notes.getNotes) || [];
 
   // Liaison de l'action Convex pour traiter l'audio
   const processAudio = useAction(api.actions.processAudio);
@@ -179,7 +170,6 @@ export function useNotes() {
       setProcessingStep("Analyse en cours par l'IA...");
 
       const result = await processAudio({
-        userId,
         audioData: arrayBuffer,
         mimeType: audioBlob.type || "audio/webm",
         noteId: modifyingNoteRef.current?.id as any,
@@ -216,7 +206,7 @@ export function useNotes() {
   // Traiter la suppression d'une note
   const handleDeleteNote = async (id: string) => {
     try {
-      await deleteNote({ id: id as any, userId });
+      await deleteNote({ id: id as any });
       showToast("Note supprimée avec succès !", "success");
     } catch (err: any) {
       console.error("Erreur suppression note :", err);
@@ -229,7 +219,7 @@ export function useNotes() {
   // Cocher/décocher une tâche
   const handleToggleTodo = async (noteId: string, index: number) => {
     try {
-      await toggleTodo({ noteId: noteId as any, index, userId });
+      await toggleTodo({ noteId: noteId as any, index });
     } catch (err: any) {
       console.error("Erreur toggle todo :", err);
       showToast("Impossible de modifier le statut de la tâche.", "error");
@@ -296,7 +286,6 @@ export function useNotes() {
   };
 
   return {
-    userId,
     notes: notes as Note[],
     filteredNotes,
     selectedTag,
