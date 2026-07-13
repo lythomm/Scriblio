@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Scriblio 🎙️✍️ - Vos notes vocales structurées par l'IA",
+  title: "Scriblio.AI - Vos notes vocales structurées par l'IA",
   description: "Transformez vos pensées orales décousues en résumés clairs, plans d'action et brouillons d'emails en un clic.",
 };
 
