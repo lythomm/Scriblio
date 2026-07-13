@@ -24,6 +24,55 @@ const SUGGESTIONS = [
   "Résumé de mes dernières tâches",
 ];
 
+// Helper simple pour parser le gras (**), l'italique (*) et les listes
+const renderMarkdown = (text: string) => {
+  const lines = text.split("\n");
+  
+  return lines.map((line, lineIdx) => {
+    // Détection des puces (* ou -)
+    const bulletMatch = line.match(/^(\s*)[*-]\s+(.*)$/);
+    
+    // Remplacement du gras (**) et de l'italique (*)
+    const formatText = (str: string) => {
+      // 1. Découpage du gras
+      const boldParts = str.split(/\*\*([^*]+)\*\*/g);
+      return boldParts.map((boldPart, bIdx) => {
+        const isBold = bIdx % 2 === 1;
+
+        // 2. Découpage de l'italique dans chaque segment
+        const italicParts = boldPart.split(/\*([^*]+)\*/g);
+        const renderedItalics = italicParts.map((italicPart, iIdx) => {
+          const isItalic = iIdx % 2 === 1;
+          if (isItalic) {
+            return <em key={iIdx} className="italic text-ink-muted">{italicPart}</em>;
+          }
+          return italicPart;
+        });
+
+        if (isBold) {
+          return <strong key={bIdx} className="font-bold text-ink">{renderedItalics}</strong>;
+        }
+        return <React.Fragment key={bIdx}>{renderedItalics}</React.Fragment>;
+      });
+    };
+
+    if (bulletMatch) {
+      const content = bulletMatch[2];
+      return (
+        <li key={lineIdx} className="list-disc ml-5 mb-1 text-sm leading-relaxed">
+          {formatText(content)}
+        </li>
+      );
+    }
+
+    return (
+      <p key={lineIdx} className="mb-2 text-sm leading-relaxed min-h-[1rem]">
+        {formatText(line)}
+      </p>
+    );
+  });
+};
+
 export default function AskPage() {
   const [userId, setUserId] = useState<string>("");
   const askScriblioAction = useAction(api.actions.askScriblio);
@@ -56,25 +105,81 @@ export default function AskPage() {
     setMessages((prev) => [...prev, { role: "user", text: userQuery }]);
     setIsLoading(true);
 
+    // Initialiser le message vide de l'assistant dans la liste de discussion
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", text: "", sources: [] }
+    ]);
+
     try {
-      const response = await askScriblioAction({ userId, query: userQuery });
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: response.answer,
-          sources: response.sources,
-        },
-      ]);
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, query: userQuery }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur serveur lors de la requête de chat");
+      }
+
+      if (!response.body) {
+        throw new Error("Aucun flux de réponse reçu");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let assistantText = "";
+      let parsedSources: SourceNote[] = [];
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          const chunk = decoder.decode(value);
+          
+          // Détection des métadonnées de sources transmises dans le premier chunk
+          if (chunk.startsWith("__SOURCES__:")) {
+            const newlineIndex = chunk.indexOf("\n");
+            if (newlineIndex !== -1) {
+              const headerStr = chunk.slice(12, newlineIndex);
+              try {
+                const headerData = JSON.parse(headerStr);
+                parsedSources = headerData.sources || [];
+              } catch (e) {
+                console.error("Erreur de parsing des sources:", e);
+              }
+              const remainingText = chunk.slice(newlineIndex + 1);
+              if (remainingText) {
+                assistantText += remainingText;
+              }
+            }
+          } else {
+            assistantText += chunk;
+          }
+
+          // Mise à jour progressive du texte du message dans l'interface
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastMessage = updated[updated.length - 1];
+            if (lastMessage && lastMessage.role === "assistant") {
+              lastMessage.text = assistantText;
+              lastMessage.sources = parsedSources;
+            }
+            return updated;
+          });
+        }
+      }
     } catch (err) {
       console.error(err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: "Désolé, une erreur s'est produite lors de la génération de la réponse.",
-        },
-      ]);
+      setMessages((prev) => {
+        const updated = [...prev];
+        const lastMessage = updated[updated.length - 1];
+        if (lastMessage && lastMessage.role === "assistant") {
+          lastMessage.text = "Désolé, une erreur s'est produite lors de la génération de la réponse.";
+        }
+        return updated;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -140,24 +245,34 @@ export default function AskPage() {
               </div>
             ) : (
               <div className="space-y-6 pb-6">
-                {messages.map((m, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex flex-col ${
-                      m.role === "user" ? "items-end" : "items-start"
-                    }`}
-                  >
+                {messages.map((m, idx) => {
+                  if (m.role === "assistant" && !m.text.trim()) {
+                    return null;
+                  }
+                  return (
                     <div
+                      key={idx}
+                      className={`flex flex-col ${
+                        m.role === "user" ? "items-end" : "items-start"
+                      }`}
+                    >
+                      <div
                       className={`max-w-[85%] px-4.5 py-3.5 rounded-xl text-sm leading-relaxed shadow-soft ${
                         m.role === "user"
                           ? "bg-primary text-white font-medium"
                           : "bg-canvas border border-hairline text-neutral-800 font-sans"
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{m.text}</p>
+                      {m.role === "user" ? (
+                        <p className="whitespace-pre-wrap">{m.text}</p>
+                      ) : (
+                        <div className="space-y-1 font-sans">
+                          {renderMarkdown(m.text)}
+                        </div>
+                      )}
                       
                       {/* Sources de la réponse */}
-                      {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                      {m.role === "assistant" && m.sources && m.sources.length > 0 && m.text.trim() && !isLoading && (
                         <div className="mt-4 pt-3.5 border-t border-hairline space-y-2">
                           <p className="text-[10px] text-ink-faint uppercase tracking-wider font-bold">Notes associées :</p>
                           <div className="flex flex-wrap gap-2">
@@ -176,7 +291,8 @@ export default function AskPage() {
                       )}
                     </div>
                   </div>
-                ))}
+                );
+              })}
                 
                 {isLoading && (
                   <div className="flex items-center gap-2 text-xs text-ink-faint pl-2 animate-pulse">

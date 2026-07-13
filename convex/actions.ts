@@ -8,6 +8,45 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
+// Fonction utilitaire pour exécuter des appels LLM avec retry et fallback de modèles
+async function generateContentWithRetry(
+  ai: GoogleGenAI,
+  models: string[],
+  contents: any,
+  config?: any
+) {
+  let lastError = null;
+  const maxRetries = 2; // 2 tentatives par modèle
+  const baseDelay = 1000; // 1 seconde de base
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await ai.models.generateContent({
+          model,
+          contents,
+          config,
+        });
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[API AI] Échec tentative ${attempt + 1} avec le modèle ${model}:`, err.message || err);
+        
+        // Arrêter les retries sur ce modèle si c'est une erreur client définitive (400, 403, 404)
+        const errStr = String(err);
+        if (errStr.includes("400") || errStr.includes("403") || errStr.includes("404")) {
+          break;
+        }
+
+        // Attente exponentielle
+        if (attempt < maxRetries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, baseDelay * Math.pow(2, attempt)));
+        }
+      }
+    }
+  }
+  throw lastError || new Error("Échec de la génération après plusieurs essais et modèles de secours.");
+}
+
 // Action Convex de traitement de l'audio avec le SDK @google/genai
 export const processAudio = action({
   args: {
@@ -47,10 +86,11 @@ export const processAudio = action({
         },
       });
 
-      // Appel au modèle Gemini 2.5 Flash Native Audio
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: [
+      // Appel au modèle Gemini avec fallback et retries
+      const response = await generateContentWithRetry(
+        ai,
+        ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash"],
+        [
           {
             fileData: {
               fileUri: uploadedFile.uri,
@@ -61,7 +101,7 @@ export const processAudio = action({
             text: "Structure l'enregistrement audio fourni.",
           },
         ],
-        config: {
+        {
           systemInstruction: `Tu es Scriblio, un assistant IA de productivité d'élite.
 Analyse l'enregistrement audio fourni et structure-le sous la forme d'un objet JSON valide.
 Si l'audio est silencieux, vide, ou totalement incompréhensible, retourne UNIQUEMENT cet objet JSON :
@@ -84,8 +124,8 @@ L'utilisateur est en train de MODIFIER ou COMPLÉTER une note existante. Voici l
 
 Prends en compte ce contexte d'origine et fusionne-le de manière cohérente avec les nouvelles consignes ou modifications mentionnées dans le nouvel enregistrement audio. Mets à jour la synthèse ("summary"), conserve ou ajuste la liste de tâches ("todoList") et sélectionne les "tags" correspondants.` : ""),
           responseMimeType: "application/json",
-        },
-      });
+        }
+      );
 
       const textOutput = response.text;
       if (!textOutput) {
@@ -300,20 +340,35 @@ export const askScriblio = action({
       })
       .join("\n\n");
 
-    // 5. Appeler Gemini pour synthétiser la réponse RAG
-    const response = await ai.models.generateContent({
-      model: "gemma-4-26b-a4b-it",
-      contents: `Tu es Scriblio, un assistant IA de productivité.
+    const now = new Date();
+    const currentDateStr = now.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    // 5. Appeler Gemini pour synthétiser la réponse RAG avec fallback et retries
+    const response = await generateContentWithRetry(
+      ai,
+      ["gemma-4-26b-a4b-it", "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-1.5-flash"],
+      `Tu es Scriblio, un assistant IA de productivité.
 Réponds à la question posée par l'utilisateur en te basant exclusivement sur le contexte de ses notes vocales personnelles fourni ci-dessous.
 Sois précis, poli et rédiges ta réponse en français de façon naturelle. Si le contexte ne contient pas de réponse adéquate, indique-le poliment.
 Cite impérativement la source de tes affirmations en ajoutant son index (ex: [Note 1] ou [Note 2]) à la fin de tes phrases.
+Ne commence jamais ta réponse par des salutations (ex: "Bonjour", "Salut", "Hello") ni par des formules de politesse d'introduction. Rédige directement la réponse.
+
+DATE D'AUJOURD'HUI : ${currentDateStr}
+
+RÈGLE TEMPORELLE CRITIQUE :
+Fais extrêmement attention aux dates. Compare la date d'aujourd'hui avec la date de création de chaque note. Si l'utilisateur pose une question temporelle (ex: "ce samedi", "cette semaine", "le mois dernier"), filtre mentalement les notes pour ne garder que celles correspondant précisément à la période ciblée. Ignore les tâches ou événements prévus pour d'autres semaines ou dates.
 
 CONTEXTE DE L'UTILISATEUR :
 ${contextText}
 
 QUESTION DE L'UTILISATEUR :
-${args.query}`,
-    });
+${args.query}`
+    );
 
     return {
       answer: response.text || "Désolé, je n'ai pas pu formuler de réponse.",
@@ -323,5 +378,52 @@ ${args.query}`,
         createdAt: n.createdAt,
       })),
     };
+  },
+});
+
+// Action de recherche pure RAG pour le streaming
+export const searchNotesForRAG = action({
+  args: {
+    userId: v.string(),
+    query: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ matchedNotes: any[] }> => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    // 1. Calculer l'embedding de la question
+    const embedResponse = await ai.models.embedContent({
+      model: "gemini-embedding-001",
+      contents: args.query,
+      config: {
+        outputDimensionality: 768,
+      },
+    });
+    const queryVector = embedResponse.embeddings?.[0]?.values;
+    if (!queryVector) {
+      throw new Error("Impossible de calculer l'embedding de la question.");
+    }
+
+    // 2. Faire la recherche vectorielle dans Convex
+    const searchResults = await ctx.vectorSearch("notes", "by_embedding", {
+      vector: queryVector,
+      limit: 3,
+    });
+
+    // 3. Récupérer les documents correspondants
+    const matchedNotes = [];
+    for (const result of searchResults) {
+      const note = await ctx.runQuery(api.notes.getNoteById, { id: result._id });
+      // Règle 13 : Validation d'autorisation de propriété
+      if (note && note.userId === args.userId) {
+        matchedNotes.push(note);
+      }
+    }
+
+    return { matchedNotes };
   },
 });
