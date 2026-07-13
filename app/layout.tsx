@@ -39,6 +39,17 @@ export default function RootLayout({
           <ConvexClientProvider>
             <AuthWrapper>{children}</AuthWrapper>
           </ConvexClientProvider>
+          <div className="landscape-lock" aria-live="assertive">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3" />
+            </svg>
+            <p style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', fontWeight: 600 }}>
+              Veuillez tourner votre appareil en mode portrait
+            </p>
+            <p style={{ color: 'var(--color-ink-muted)', fontSize: '0.875rem' }}>
+              Scriblio est optimisé pour une utilisation en portrait.
+            </p>
+          </div>
           <script
             dangerouslySetInnerHTML={{
               __html: `
@@ -46,6 +57,9 @@ export default function RootLayout({
                   window.addEventListener('load', () => {
                     navigator.serviceWorker.register('/sw.js');
                   });
+                }
+                if (screen.orientation && screen.orientation.lock) {
+                  screen.orientation.lock('portrait').catch(() => {});
                 }
               `,
             }}

@@ -4,6 +4,8 @@ import { MoreVertical, Calendar, Copy } from "lucide-react";
 import { Note } from "../hooks/useNotes";
 import { AVAILABLE_TAGS } from "./FilterBar";
 
+import { renderMarkdown } from "./renderMarkdown";
+
 interface NoteCardProps {
   note: Note;
   openMenuNoteId: string | null;
@@ -108,9 +110,9 @@ export default function NoteCard({
           title="Cliquez pour copier la synthèse"
           className="cursor-pointer group relative active:opacity-75 select-text"
         >
-          <p className="text-ink-secondary text-base leading-relaxed whitespace-pre-wrap font-editorial transition-colors group-hover:text-ink">
-            {note.summary}
-          </p>
+          <div className="text-ink-secondary text-base leading-relaxed font-editorial transition-colors group-hover:text-ink">
+            {renderMarkdown(note.summary)}
+          </div>
           {copiedText === `sum-${note._id}` && (
             <span className="absolute -top-6 right-0 px-2 py-0.5 bg-sky-50 border border-sky-100 text-[10px] text-sky-800 rounded font-semibold animate-fade-in-down">
               Copié !

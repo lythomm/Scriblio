@@ -8,6 +8,7 @@ import { Send, Loader2, MessageSquare, ArrowRight, ExternalLink, Menu, Mic, Squa
 import Sidebar from "../components/Sidebar";
 import Button from "../components/Button";
 import ToastContainer from "../components/ToastContainer";
+import { renderMarkdown } from "../components/renderMarkdown";
 
 export interface Toast {
   id: string;
@@ -26,54 +27,6 @@ const SUGGESTIONS = [
   "Résumé de mes dernières tâches",
 ];
 
-// Helper simple pour parser le gras (**), l'italique (*) et les listes
-const renderMarkdown = (text: string) => {
-  const lines = text.split("\n");
-  
-  return lines.map((line, lineIdx) => {
-    // Détection des puces (* ou -)
-    const bulletMatch = line.match(/^(\s*)[*-]\s+(.*)$/);
-    
-    // Remplacement du gras (**) et de l'italique (*)
-    const formatText = (str: string) => {
-      // 1. Découpage du gras
-      const boldParts = str.split(/\*\*([^*]+)\*\*/g);
-      return boldParts.map((boldPart, bIdx) => {
-        const isBold = bIdx % 2 === 1;
-
-        // 2. Découpage de l'italique dans chaque segment
-        const italicParts = boldPart.split(/\*([^*]+)\*/g);
-        const renderedItalics = italicParts.map((italicPart, iIdx) => {
-          const isItalic = iIdx % 2 === 1;
-          if (isItalic) {
-            return <em key={iIdx} className="italic text-ink-muted">{italicPart}</em>;
-          }
-          return italicPart;
-        });
-
-        if (isBold) {
-          return <strong key={bIdx} className="font-bold text-ink">{renderedItalics}</strong>;
-        }
-        return <React.Fragment key={bIdx}>{renderedItalics}</React.Fragment>;
-      });
-    };
-
-    if (bulletMatch) {
-      const content = bulletMatch[2];
-      return (
-        <li key={lineIdx} className="list-disc ml-5 mb-1 text-sm leading-relaxed">
-          {formatText(content)}
-        </li>
-      );
-    }
-
-    return (
-      <p key={lineIdx} className="mb-2 text-sm leading-relaxed min-h-[1rem]">
-        {formatText(line)}
-      </p>
-    );
-  });
-};
 
 export default function AskPage() {
   const askScriblioAction = useAction(api.actions.askScriblio);
