@@ -6,7 +6,6 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 export const createNote = mutation({
   args: {
     summary: v.string(),
-    todoList: v.array(v.object({ text: v.string(), done: v.boolean() })),
     tags: v.array(v.string()),
     audioStorageId: v.optional(v.id("_storage")),
     embedding: v.optional(v.array(v.float64())),
@@ -20,7 +19,6 @@ export const createNote = mutation({
     const noteId = await ctx.db.insert("notes", {
       userId,
       summary: args.summary,
-      todoList: args.todoList,
       tags: args.tags,
       audioStorageId: args.audioStorageId,
       createdAt: Date.now(),
@@ -71,49 +69,11 @@ export const deleteNote = mutation({
   },
 });
 
-// Mutation pour cocher / décocher un élément de la todo list
-export const toggleTodo = mutation({
-  args: {
-    noteId: v.id("notes"),
-    index: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) {
-      throw new Error("Non autorisé.");
-    }
-
-    const note = await ctx.db.get(args.noteId);
-    if (!note) {
-      throw new Error("Note non trouvée.");
-    }
-    
-    // Règle 13 : Validation de propriété
-    if (note.userId !== userId) {
-      throw new Error("Action non autorisée.");
-    }
-
-    const newTodoList = [...note.todoList];
-    if (args.index >= 0 && args.index < newTodoList.length) {
-      newTodoList[args.index] = {
-        ...newTodoList[args.index],
-        done: !newTodoList[args.index].done,
-      };
-    } else {
-      throw new Error("Index de tâche invalide.");
-    }
-
-    await ctx.db.patch(args.noteId, { todoList: newTodoList });
-    return { success: true };
-  },
-});
-
 // Mutation pour mettre à jour le contenu d'une note existante
 export const updateNote = mutation({
   args: {
     id: v.id("notes"),
     summary: v.string(),
-    todoList: v.array(v.object({ text: v.string(), done: v.boolean() })),
     tags: v.array(v.string()),
     embedding: v.optional(v.array(v.float64())),
   },
@@ -135,7 +95,6 @@ export const updateNote = mutation({
 
     await ctx.db.patch(args.id, {
       summary: args.summary,
-      todoList: args.todoList,
       tags: args.tags,
       embedding: args.embedding,
     });

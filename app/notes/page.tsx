@@ -74,18 +74,14 @@ export default function HistoryPage() {
           ) : (
             <div className="flex flex-col gap-8">
               {notesApi.filteredNotes.map((note) => {
-                const activeTab = notesApi.getNoteActiveTab(note._id);
                 return (
                   <NoteCard
                     key={note._id}
                     note={note}
-                    activeTab={activeTab}
-                    setNoteActiveTab={notesApi.setNoteActiveTab}
                     openMenuNoteId={notesApi.openMenuNoteId}
                     setOpenMenuNoteId={notesApi.setOpenMenuNoteId}
                     setNoteToDelete={notesApi.setNoteToDelete}
                     startModifyingNote={notesApi.startModifyingNote}
-                    handleToggleTodo={notesApi.handleToggleTodo}
                     copyToClipboard={notesApi.copyToClipboard}
                     copiedText={notesApi.copiedText}
                   />

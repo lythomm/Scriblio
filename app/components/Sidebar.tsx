@@ -42,9 +42,7 @@ export default function Sidebar({
         {/* Titre / Identité de l'application */}
         <div className="p-5 border-b border-hairline flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-md bg-sticker-purple flex items-center justify-center text-xs font-bold text-sticker-purple-deep shadow-soft">
-              S
-            </span>
+            <img src="/logo.png" alt="Scriblio Logo" className="w-6 h-6 rounded-md object-cover shadow-soft" />
             <h1 className="text-base font-bold tracking-title text-ink font-sans">
               Scriblio
             </h1>

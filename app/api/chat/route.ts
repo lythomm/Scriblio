@@ -89,8 +89,7 @@ export async function POST(req: Request) {
           hour: "2-digit",
           minute: "2-digit",
         });
-        const tasksStr = n.todoList.map((t: any) => `- [${t.done ? "x" : " "}] ${t.text}`).join("\n");
-        return `[Note ${idx + 1}] du ${dateStr} :\nRésumé : ${n.summary}\nTâches :\n${tasksStr}`;
+        return `[Note ${idx + 1}] du ${dateStr} :\nRésumé : ${n.summary}`;
       })
       .join("\n\n");
 
@@ -105,7 +104,6 @@ export async function POST(req: Request) {
     const systemPrompt = `Tu es Scriblio, un assistant IA de productivité.
 Réponds à la question posée par l'utilisateur en te basant exclusivement sur le contexte de ses notes vocales personnelles fourni ci-dessous.
 Sois précis, poli et rédiges ta réponse en français de façon naturelle. Si le contexte ne contient pas de réponse adéquate, indique-le poliment.
-Cite impérativement la source de tes affirmations en ajoutant son index (ex: [Note 1] ou [Note 2]) à la fin de tes phrases.
 Ne commence jamais ta réponse par des salutations (ex: "Bonjour", "Salut", "Hello") ni par des formules de politesse d'introduction. Rédige directement la réponse.
 
 DATE D'AUJOURD'HUI : ${currentDateStr}
@@ -128,16 +126,7 @@ ${query}`;
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Envoyer d'abord les sources sous forme d'une ligne spéciale préfixée
-          const sourcesHeader = {
-            sources: matchedNotes.map((n: any, idx: number) => ({
-              id: n._id,
-              summary: n.summary,
-              createdAt: n.createdAt,
-              index: idx + 1,
-            })),
-          };
-          controller.enqueue(encoder.encode(`__SOURCES__:${JSON.stringify(sourcesHeader)}\n`));
+
 
           for await (const chunk of responseStream) {
             const content = chunk.choices[0]?.delta?.content || "";

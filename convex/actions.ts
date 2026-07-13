@@ -110,10 +110,9 @@ Si l'audio est silencieux, vide, ou totalement incompréhensible, retourne UNIQU
   "message": "Audio incompréhensible ou non audible."
 }
 
-Sinon, l'objet JSON doit contenir exactement ces trois clés :
-1. "summary" : Une synthèse fluide, propre et professionnelle des idées principales de l'audio, rédigée en français sous forme de paragraphe(s). Ne jamais utiliser de pronoms personnels ("Je", "Il") ni de formulations d'introduction ou de métadiscours (ex: "L'utilisateur souhaite...", "L'utilisateur a dit...", "Dans cet audio..."). Formuler directement les faits et idées de manière professionnelle (ex: "Vérification en cours du bon fonctionnement du PC, avec démontage prévu pour inspection interne. Remplacement potentiel de la mémoire RAM et de la carte graphique, avec recherches à effectuer chez AMD.").
-2. "todoList" : Une extraction de toutes les actions concrètes mentionnées sous forme de tableau d'objets JSON. Chaque objet doit contenir la clé "text" (la description de l'action, formulée sous forme de verbe à l'infinitif en français, ex: "Acheter du pain", "Vérifier la RAM") et la clé "done" (un booléen qui vaut impérativement false par défaut). Si aucune action n'est mentionnée, retourne un tableau vide.
-3. "tags" : Un tableau de chaînes de caractères (tableau JSON) contenant entre 1 et 3 thématiques correspondantes. Choisis uniquement parmi cette liste stricte de valeurs : ["boulot", "administration", "sante", "finance", "loisir", "autre"].
+Sinon, l'objet JSON doit contenir exactement ces deux clés :
+1. "summary" : Une synthèse fluide, propre et professionnelle des idées principales de l'audio, rédigée en français sous forme de paragraphe(s). Ne jamais utiliser de pronoms personnels ("Je", "Il") ni de formulations d'introduction ou de métadiscours (ex: "L'utilisateur souhaite...", "L'utilisateur a dit...", "Dans cet audio..."). Formuler directement les faits et idées de manière professionnelle (ex: "Vérification en cours du bon fonctionnement du PC, avec démontage prévu pour inspection interne. Remplacement de la mémoire RAM et de la carte graphique, avec recherches à effectuer chez AMD."). Si l'utilisateur demande explicitement de dresser une liste de tâches, d'actions concrètes ou une to-do list, formate-la directement sous forme de liste à puces en Markdown à la fin de cette synthèse.
+2. "tags" : Un tableau de chaînes de caractères (tableau JSON) contenant entre 1 et 3 thématiques correspondantes. Choisis uniquement parmi cette liste stricte de valeurs : ["boulot", "administration", "sante", "finance", "loisir", "autre"].
    Règle importante : Si l'utilisateur mentionne explicitement à l'oral de classer l'élément dans l'une de ces catégories (ex: "Mets ça dans finance", "Classe-le sous santé"), tu dois impérativement inclure cette thématique. Sinon, classe automatiquement selon le sujet.
 
 Règles importantes :
@@ -122,7 +121,7 @@ Règles importantes :
 L'utilisateur est en train de MODIFIER ou COMPLÉTER une note existante. Voici la synthèse actuelle de cette note (à utiliser comme contexte de départ) :
 "${args.existingSummary}"
 
-Prends en compte ce contexte d'origine et fusionne-le de manière cohérente avec les nouvelles consignes ou modifications mentionnées dans le nouvel enregistrement audio. Mets à jour la synthèse ("summary"), conserve ou ajuste la liste de tâches ("todoList") et sélectionne les "tags" correspondants.` : "");
+Prends en compte ce contexte d'origine et fusionne-le de manière cohérente avec les nouvelles consignes ou modifications mentionnées dans le nouvel enregistrement audio. Mets à jour la synthèse ("summary") et sélectionne les "tags" correspondants.` : "");
 
       const chatCompletion = await generateGroqChatCompletionWithRetry(
         groq,
@@ -169,29 +168,6 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
         };
       }
 
-      // Coercition robuste de todoList en tableau d'objets { text: string, done: boolean }
-      let todoListArray: { text: string; done: boolean }[] = [];
-      if (Array.isArray(parsedResults.todoList)) {
-        todoListArray = parsedResults.todoList
-          .map((item: any) => {
-            if (item && typeof item === "object" && "text" in item) {
-              return {
-                text: String(item.text).trim(),
-                done: !!item.done,
-              };
-            } else if (item) {
-              return {
-                text: String(item).trim(),
-                done: false,
-              };
-            }
-            return null;
-          })
-          .filter((item: any): item is { text: string; done: boolean } => item !== null && item.text !== "");
-      } else if (typeof parsedResults.todoList === "string" && parsedResults.todoList.trim() !== "") {
-        todoListArray = [{ text: parsedResults.todoList.trim(), done: false }];
-      }
-
       // Coercition robuste et filtrage des tags thématiques
       const validTags = ["boulot", "administration", "sante", "finance", "loisir", "autre"];
       let tagsArray: string[] = [];
@@ -234,14 +210,12 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
         noteId = await ctx.runMutation(api.notes.updateNote, {
           id: args.noteId,
           summary: summaryText,
-          todoList: todoListArray,
           tags: tagsArray,
           embedding: embeddingArray,
         });
       } else {
         noteId = await ctx.runMutation(api.notes.createNote, {
           summary: summaryText,
-          todoList: todoListArray,
           tags: tagsArray,
           embedding: embeddingArray,
         });
@@ -276,7 +250,7 @@ export const askScriblio = action({
     query: v.string(),
   },
 
-  handler: async (ctx, args): Promise<{ answer: string; sources: { id: string; summary: string; createdAt: number }[] }> => {
+  handler: async (ctx, args): Promise<{ answer: string }> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new Error("Non autorisé. Utilisateur non connecté.");
@@ -324,7 +298,6 @@ export const askScriblio = action({
     if (matchedNotes.length === 0) {
       return {
         answer: "Je n'ai pas trouvé d'informations ou de notes pertinentes dans votre historique pour répondre à cette question.",
-        sources: [],
       };
     }
 
@@ -338,8 +311,7 @@ export const askScriblio = action({
           hour: "2-digit",
           minute: "2-digit",
         });
-        const tasksStr = n.todoList.map((t) => `- [${t.done ? "x" : " "}] ${t.text}`).join("\n");
-        return `[Note ${idx + 1}] du ${dateStr} :\nRésumé : ${n.summary}\nTâches :\n${tasksStr}`;
+        return `[Note ${idx + 1}] du ${dateStr} :\nRésumé : ${n.summary}`;
       })
       .join("\n\n");
 
@@ -355,7 +327,6 @@ export const askScriblio = action({
     const systemPrompt = `Tu es Scriblio, un assistant IA de productivité.
 Réponds à la question posée par l'utilisateur en te basant exclusivement sur le contexte de ses notes vocales personnelles fourni ci-dessous.
 Sois précis, poli et rédiges ta réponse en français de façon naturelle. Si le contexte ne contient pas de réponse adéquate, indique-le poliment.
-Cite impérativement la source de tes affirmations en ajoutant son index (ex: [Note 1] ou [Note 2]) à la fin de tes phrases.
 Ne commence jamais ta réponse par des salutations (ex: "Bonjour", "Salut", "Hello") ni par des formules de politesse d'introduction. Rédige directement la réponse.
 
 DATE D'AUJOURD'HUI : ${currentDateStr}
@@ -377,22 +348,8 @@ ${contextText}`;
 
     const answer = chatCompletion.choices[0].message.content || "Désolé, je n'ai pas pu formuler de réponse.";
 
-    // Filtrer pour ne garder que les sources réellement citées par l'assistant
-    const citedSources = matchedNotes
-      .map((n, idx) => ({
-        id: n._id,
-        summary: n.summary,
-        createdAt: n.createdAt,
-        index: idx + 1,
-      }))
-      .filter((s) => {
-        const citationPattern = new RegExp(`\\[Note\\s*${s.index}\\]`, "i");
-        return citationPattern.test(answer);
-      });
-
     return {
       answer,
-      sources: citedSources,
     };
   },
 });
@@ -488,3 +445,5 @@ export const transcribeAudio = action({
     }
   },
 });
+
+

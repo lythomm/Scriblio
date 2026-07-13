@@ -15,7 +15,6 @@ export interface Note {
   _creationTime: number;
   userId: string;
   summary: string;
-  todoList: { text: string; done: boolean }[];
   tags?: string[];
   audioStorageId?: string;
   createdAt: number;
@@ -33,9 +32,6 @@ export function useNotes() {
   // Liaison de la mutation Convex pour supprimer une note
   const deleteNote = useMutation(api.notes.deleteNote);
 
-  // Liaison de la mutation Convex pour cocher/décocher une tâche
-  const toggleTodo = useMutation(api.notes.toggleTodo);
-
   // États de l'interface
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -49,9 +45,6 @@ export function useNotes() {
   const [openMenuNoteId, setOpenMenuNoteId] = useState<string | null>(null); // ID de la note avec menu ouvert
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null); // ID de la note en cours de suppression
   const [modifyingNote, setModifyingNote] = useState<{ id: string; summary: string; dateStr: string } | null>(null); // Note en cours de modification
-
-  // Dictionnaire pour suivre l'onglet actif de chaque note individuelle
-  const [activeTabs, setActiveTabs] = useState<Record<string, "summary" | "todo">>({});
 
   // Références pour l'enregistrement audio
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -216,15 +209,7 @@ export function useNotes() {
     }
   };
 
-  // Cocher/décocher une tâche
-  const handleToggleTodo = async (noteId: string, index: number) => {
-    try {
-      await toggleTodo({ noteId: noteId as any, index });
-    } catch (err: any) {
-      console.error("Erreur toggle todo :", err);
-      showToast("Impossible de modifier le statut de la tâche.", "error");
-    }
-  };
+
 
   // Copier le texte dans le presse-papiers
   const copyToClipboard = (text: string, type: string) => {
@@ -243,15 +228,7 @@ export function useNotes() {
     }
   };
 
-  // Obtenir l'onglet actif d'une note
-  const getNoteActiveTab = (noteId: string) => {
-    return activeTabs[noteId] || "summary";
-  };
 
-  // Changer l'onglet d'une note
-  const setNoteActiveTab = (noteId: string, tab: "summary" | "todo") => {
-    setActiveTabs((prev) => ({ ...prev, [noteId]: tab }));
-  };
 
   // Enclencher le mode modification et démarrer l'enregistrement immédiatement
   const startModifyingNote = (noteId: string, summary: string, dateStr: string) => {
@@ -306,11 +283,8 @@ export function useNotes() {
     startRecording,
     stopRecording,
     handleDeleteNote,
-    handleToggleTodo,
     copyToClipboard,
     scrollToNote,
-    getNoteActiveTab,
-    setNoteActiveTab,
     startModifyingNote,
     cancelModifyingNote,
     cancelRecording,

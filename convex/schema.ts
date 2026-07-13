@@ -7,7 +7,7 @@ export default defineSchema({
   notes: defineTable({
     userId: v.string(), // ID de l'utilisateur propriétaire (Id<"users"> stocké sous forme de string)
     summary: v.string(), // Résumé / Synthèse
-    todoList: v.array(v.object({ text: v.string(), done: v.boolean() })), // Liste des actions avec statut
+    todoList: v.optional(v.array(v.object({ text: v.string(), done: v.boolean() }))), // Déprécié
     tags: v.optional(v.array(v.string())), // Catégories thématiques
     audioStorageId: v.optional(v.id("_storage")), // Stockage optionnel de l'audio
     createdAt: v.number(), // Date de création

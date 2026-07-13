@@ -15,17 +15,9 @@ export interface Toast {
   type: "success" | "error" | "warning";
 }
 
-interface SourceNote {
-  id: string;
-  summary: string;
-  createdAt: number;
-  index?: number;
-}
-
 interface Message {
   role: "user" | "assistant";
   text: string;
-  sources?: SourceNote[];
 }
 
 const SUGGESTIONS = [
@@ -229,7 +221,7 @@ export default function AskPage() {
     // Initialiser le message vide de l'assistant dans la liste de discussion
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", text: "", sources: [] }
+      { role: "assistant", text: "" }
     ]);
 
     try {
@@ -251,33 +243,13 @@ export default function AskPage() {
       const decoder = new TextDecoder();
       let done = false;
       let assistantText = "";
-      let parsedSources: SourceNote[] = [];
 
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
         if (value) {
           const chunk = decoder.decode(value);
-          
-          // Détection des métadonnées de sources transmises dans le premier chunk
-          if (chunk.startsWith("__SOURCES__:")) {
-            const newlineIndex = chunk.indexOf("\n");
-            if (newlineIndex !== -1) {
-              const headerStr = chunk.slice(12, newlineIndex);
-              try {
-                const headerData = JSON.parse(headerStr);
-                parsedSources = headerData.sources || [];
-              } catch (e) {
-                console.error("Erreur de parsing des sources:", e);
-              }
-              const remainingText = chunk.slice(newlineIndex + 1);
-              if (remainingText) {
-                assistantText += remainingText;
-              }
-            }
-          } else {
-            assistantText += chunk;
-          }
+          assistantText += chunk;
 
           // Mise à jour progressive du texte du message dans l'interface
           setMessages((prev) => {
@@ -285,25 +257,11 @@ export default function AskPage() {
             const lastMessage = updated[updated.length - 1];
             if (lastMessage && lastMessage.role === "assistant") {
               lastMessage.text = assistantText;
-              lastMessage.sources = parsedSources;
             }
             return updated;
           });
         }
       }
-
-      // Filtrer pour ne garder que les sources réellement citées par l'assistant
-      setMessages((prev) => {
-        const updated = [...prev];
-        const lastMessage = updated[updated.length - 1];
-        if (lastMessage && lastMessage.role === "assistant" && lastMessage.sources) {
-          lastMessage.sources = lastMessage.sources.filter((s) => {
-            const citationPattern = new RegExp(`\\[Note\\s*${s.index}\\]`, "i");
-            return citationPattern.test(lastMessage.text);
-          });
-        }
-        return updated;
-      });
     } catch (err) {
       console.error(err);
       setMessages((prev) => {
@@ -414,25 +372,7 @@ export default function AskPage() {
                           {renderMarkdown(m.text)}
                         </div>
                       )}
-                      
-                      {/* Sources de la réponse */}
-                      {m.role === "assistant" && m.sources && m.sources.length > 0 && m.text.trim() && !isLoading && (
-                        <div className="mt-4 pt-3.5 border-t border-hairline space-y-2">
-                          <p className="text-[10px] text-ink-faint uppercase tracking-wider font-bold">Notes associées :</p>
-                          <div className="flex flex-wrap gap-2">
-                            {m.sources.map((s, sIdx) => (
-                              <Link
-                                key={s.id}
-                                href={`/?noteId=${s.id}`}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-canvas-soft border border-hairline text-xs font-semibold text-sky-850 hover:bg-sky-50 hover:border-sky-200 transition-colors cursor-pointer"
-                              >
-                                <ExternalLink size={10} />
-                                <span>[Note {s.index ?? (sIdx + 1)}]</span>
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+
                     </div>
                   </div>
                 );
