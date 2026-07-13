@@ -4,7 +4,8 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { ArrowLeft, Send, Loader2, MessageSquare, ArrowRight, ExternalLink } from "lucide-react";
+import { Send, Loader2, MessageSquare, ArrowRight, ExternalLink, Menu } from "lucide-react";
+import Sidebar from "../components/Sidebar";
 
 interface SourceNote {
   id: string;
@@ -80,6 +81,7 @@ export default function AskPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Charger le userId depuis le localStorage au montage
@@ -186,28 +188,38 @@ export default function AskPage() {
   };
 
   return (
-    <div className="h-screen bg-canvas font-sans antialiased text-ink flex flex-col overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-canvas-soft font-sans antialiased text-ink">
       
-      {/* En-tête de la Page (Plein écran) */}
-      <header className="h-16 px-4 md:px-8 border-b border-hairline bg-canvas shrink-0 flex items-center justify-between z-20 shadow-soft">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 px-3 py-1.5 hover:bg-canvas-soft rounded-md text-xs font-semibold text-ink-secondary transition-colors cursor-pointer"
-        >
-          <ArrowLeft size={14} />
-          <span>Retour aux notes</span>
-        </Link>
-        
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-sticker-sky inline-block" />
-          <h2 className="text-sm font-semibold uppercase tracking-eyebrow text-ink-muted">
-            Assistant IA Scriblio
-          </h2>
-        </div>
-      </header>
+      {/* Barre latérale : Menu de navigation */}
+      <Sidebar
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+      />
 
-      {/* Zone de Chat Plein Écran */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-canvas-soft/10">
+      {/* Zone Centrale Principale */}
+      <main className="flex-1 flex flex-col h-full bg-canvas-soft overflow-hidden relative">
+        
+        {/* En-tête minimaliste avec bouton Hamburger pour mobile */}
+        <header className="px-4 md:px-8 py-4 border-b border-hairline bg-canvas flex justify-between items-center shrink-0 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-1 md:hidden text-ink-muted hover:text-ink cursor-pointer"
+            >
+              <Menu size={22} />
+            </button>
+            
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-sticker-sky inline-block" />
+              <h2 className="text-sm font-semibold uppercase tracking-eyebrow text-ink-muted">
+                Assistant IA Scriblio
+              </h2>
+            </div>
+          </div>
+        </header>
+
+        {/* Zone de Chat Plein Écran */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-canvas-soft/10">
         
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6 md:py-8 space-y-4">
@@ -336,7 +348,7 @@ export default function AskPage() {
         </div>
 
       </div>
-
-    </div>
+    </main>
+  </div>
   );
 }

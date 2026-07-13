@@ -1,24 +1,27 @@
 "use client";
 
 import React from "react";
-import { Mic, Calendar, X } from "lucide-react";
-import { Note } from "../hooks/useNotes";
+import { Mic, FileText, MessageSquare, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 interface SidebarProps {
-  notes: Note[];
   isSidebarOpen: boolean;
   setIsSidebarOpen: (isOpen: boolean) => void;
-  scrollToNote: (id: string) => void;
-  selectedTag: string | null;
 }
 
 export default function Sidebar({
-  notes,
   isSidebarOpen,
   setIsSidebarOpen,
-  scrollToNote,
-  selectedTag,
 }: SidebarProps) {
+  const pathname = usePathname();
+
+  const menuItems = [
+    { name: "Tableau de Bord", href: "/", icon: Mic },
+    { name: "Mes notes", href: "/notes", icon: FileText },
+    { name: "Poser une question", href: "/ask", icon: MessageSquare },
+  ];
+
   return (
     <>
       {/* Overlay Backdrop pour la barre latérale sur mobile */}
@@ -29,8 +32,8 @@ export default function Sidebar({
         />
       )}
 
-      {/* Barre latérale : Index/Raccourcis de l'historique */}
-      <aside className={`fixed inset-y-0 left-0 z-45 w-72 bg-canvas border-r border-hairline bg-canvas flex flex-col shrink-0 transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+      {/* Barre latérale : Menu de navigation */}
+      <aside className={`fixed inset-y-0 left-0 z-45 w-72 bg-canvas border-r border-hairline flex flex-col shrink-0 transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
       }`}>
         
@@ -52,44 +55,28 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Index des notes */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold text-ink-faint uppercase tracking-wider">
-            <span>Index des Notes</span>
-            <span className="text-xs bg-canvas-soft px-1.5 py-0.5 rounded-sm border border-hairline font-normal text-ink-muted">
-              {notes.length}
-            </span>
-          </div>
-          
-          {notes.length === 0 ? (
-            <div className="text-center py-8 px-4 text-ink-faint text-sm italic">
-              {selectedTag ? "Aucune note pour ce filtre." : "Aucune note vocale."}
-            </div>
-          ) : (
-            notes.map((note) => (
-              <button
-                key={note._id}
-                onClick={() => scrollToNote(note._id)}
-                className="w-full text-left px-3 py-2.5 rounded-md transition-all duration-150 block text-sm hover:bg-canvas-soft/60 text-ink-secondary cursor-pointer"
+        {/* Liens de navigation */}
+        <nav className="flex-1 p-4 space-y-1.5">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setIsSidebarOpen(false)}
+                className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                  isActive 
+                    ? "bg-sky-50 text-sky-850 border-l-4 border-primary pl-2 shadow-soft" 
+                    : "text-ink-secondary hover:bg-canvas-soft hover:text-ink"
+                }`}
               >
-                <div className="line-clamp-1 font-medium text-ink-secondary text-sm">
-                  {note.summary || "Note sans résumé"}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-ink-faint mt-1.5">
-                  <Calendar size={12} />
-                  <span>
-                    {new Date(note.createdAt).toLocaleDateString("fr-FR", {
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
-                  </span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
+                <Icon size={18} className={isActive ? "text-primary" : "text-ink-muted"} />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
         
         {/* Footer Sidebar */}
         <div className="p-4 border-t border-hairline bg-canvas-soft/40 flex justify-between items-center text-xs text-ink-faint">

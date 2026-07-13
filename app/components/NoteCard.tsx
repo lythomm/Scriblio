@@ -50,82 +50,47 @@ export default function NoteCard({
       id={`note-${note._id}`}
       className="bg-canvas border border-hairline rounded-lg shadow-soft overflow-hidden flex flex-col scroll-mt-20 relative animate-fade-in-down"
     >
-      {/* Entête de la Note Card */}
-      <div className="px-6 py-4 bg-canvas-soft/20 border-b border-hairline flex flex-col gap-2 relative shrink-0">
+      {/* Bouton Menu Actions positionné absolument en haut à droite */}
+      <div className="absolute right-4 top-3.5 z-20">
+        <button
+          onClick={() => setOpenMenuNoteId(openMenuNoteId === note._id ? null : note._id)}
+          className="p-1.5 rounded hover:bg-canvas-soft text-ink-muted hover:text-ink cursor-pointer transition-colors"
+        >
+          <MoreVertical size={16} />
+        </button>
         
-        {/* Ligne 1 : Titre et indicateur de couleur */}
-        <div className="flex justify-between items-center w-full pr-8">
-          <div className="flex items-center gap-2.5">
-            <span className={`w-3 h-3 rounded-full inline-block shrink-0 ${
-              new Date(note.createdAt).getDate() % 2 === 0 ? "bg-sticker-purple" : "bg-sticker-sky"
-            }`} />
-            <h4 className="text-sm md:text-base font-bold text-ink-secondary font-sans tracking-heading-3">
-              Note du {dateString}
-            </h4>
-          </div>
-        </div>
-
-        {/* Bouton Menu Actions positionné absolument en haut à droite */}
-        <div className="absolute right-4 top-4.5">
-          <button
-            onClick={() => setOpenMenuNoteId(openMenuNoteId === note._id ? null : note._id)}
-            className="p-1.5 rounded hover:bg-canvas-soft text-ink-muted hover:text-ink cursor-pointer transition-colors"
-          >
-            <MoreVertical size={16} />
-          </button>
-          
-          {openMenuNoteId === note._id && (
-            <>
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setOpenMenuNoteId(null)}
-              />
-              <div className="absolute right-0 mt-1.5 w-32 bg-canvas border border-hairline rounded-md shadow-lg z-50 py-1 text-sm text-ink-secondary animate-fade-in-down">
-                <button
-                  onClick={() => {
-                    setOpenMenuNoteId(null);
-                    startModifyingNote(note._id, note.summary, formattedDateShort);
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-canvas-soft text-ink-secondary flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  Modifier
-                </button>
-                <button
-                  onClick={() => {
-                    setOpenMenuNoteId(null);
-                    setNoteToDelete(note._id);
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 cursor-pointer font-semibold transition-colors animate-fade-in-down"
-                >
-                  Supprimer
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Ligne 2 : Badges de thématiques en dessous du titre */}
-        {note.tags && note.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pl-5.5 mt-0.5">
-            {note.tags.map((t: string) => {
-              const tagInfo = AVAILABLE_TAGS.find((tag) => tag.value === t);
-              if (!tagInfo) return null;
-              return (
-                <span
-                  key={t}
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${tagInfo.bgClass} shadow-soft`}
-                >
-                  <span>{tagInfo.emoji}</span>
-                  <span>{tagInfo.label}</span>
-                </span>
-              );
-            })}
-          </div>
+        {openMenuNoteId === note._id && (
+          <>
+            <div 
+              className="fixed inset-0 z-40" 
+              onClick={() => setOpenMenuNoteId(null)}
+            />
+            <div className="absolute right-0 mt-1.5 w-32 bg-canvas border border-hairline rounded-md shadow-lg z-50 py-1 text-sm text-ink-secondary animate-fade-in-down">
+              <button
+                onClick={() => {
+                  setOpenMenuNoteId(null);
+                  startModifyingNote(note._id, note.summary, formattedDateShort);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-canvas-soft text-ink-secondary flex items-center gap-2 cursor-pointer transition-colors"
+              >
+                Modifier
+              </button>
+              <button
+                onClick={() => {
+                  setOpenMenuNoteId(null);
+                  setNoteToDelete(note._id);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 cursor-pointer font-semibold transition-colors animate-fade-in-down"
+              >
+                Supprimer
+              </button>
+            </div>
+          </>
         )}
       </div>
 
       {/* Entête avec onglets épurés (Style Notion Tabs, scrollable sur mobile) */}
-      <div className="flex border-b border-hairline bg-canvas-soft/10 px-4 pt-2 gap-2 md:gap-4 overflow-x-auto scrollbar-none shrink-0">
+      <div className="flex border-b border-hairline bg-canvas-soft/10 px-4 pt-2 gap-2 md:gap-4 overflow-x-auto scrollbar-none shrink-0 pr-12 relative">
         <button
           onClick={() => setNoteActiveTab(note._id, "summary")}
           className={`py-2.5 px-3 text-sm font-semibold transition-all duration-150 border-b-2 cursor-pointer whitespace-nowrap ${
@@ -149,50 +114,27 @@ export default function NoteCard({
       </div>
 
       {/* Contenu de l'onglet actif pour cette note spécifique */}
-      <div className="p-6 md:p-8">
+      <div className="p-6 md:p-8 flex-1">
         
         {activeTab === "summary" && (
-          <div className="space-y-5">
-            <div className="flex justify-between items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-sticker-orange inline-block shrink-0" />
-                <h5 className="text-xs uppercase tracking-eyebrow font-bold text-ink-muted">Synthèse</h5>
-              </div>
-              <button
-                onClick={() => copyToClipboard(note.summary, `sum-${note._id}`)}
-                className="px-3 py-1.5 bg-canvas hover:bg-canvas-soft border border-hairline text-ink-secondary rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-soft active:scale-95 shrink-0"
-              >
-                {copiedText === `sum-${note._id}` ? <Check size={12} className="text-sticker-green" /> : <Copy size={12} />}
-                <span>{copiedText === `sum-${note._id}` ? "Copié" : "Copier"}</span>
-              </button>
-            </div>
-            <p className="text-ink-secondary text-base leading-relaxed whitespace-pre-wrap font-sans">
+          <div 
+            onClick={() => copyToClipboard(note.summary, `sum-${note._id}`)}
+            title="Cliquez pour copier la synthèse"
+            className="cursor-pointer group relative active:opacity-75 select-text"
+          >
+            <p className="text-ink-secondary text-base leading-relaxed whitespace-pre-wrap font-sans transition-colors group-hover:text-ink">
               {note.summary}
             </p>
+            {copiedText === `sum-${note._id}` && (
+              <span className="absolute -top-6 right-0 px-2 py-0.5 bg-sky-50 border border-sky-100 text-[10px] text-sky-800 rounded font-semibold animate-fade-in-down">
+                Copié !
+              </span>
+            )}
           </div>
         )}
 
         {activeTab === "todo" && (
-          <div className="space-y-5">
-            <div className="flex justify-between items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-sticker-green inline-block shrink-0" />
-                <h5 className="text-xs uppercase tracking-eyebrow font-bold text-ink-muted">Plan d'action</h5>
-              </div>
-              <button
-                onClick={() => {
-                  const copyText = note.todoList
-                    .map((item) => `${item.done ? "✓" : "☐"} ${item.text}`)
-                    .join("\n");
-                  copyToClipboard(copyText, `todo-${note._id}`);
-                }}
-                className="px-3 py-1.5 bg-canvas hover:bg-canvas-soft border border-hairline text-ink-secondary rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-soft active:scale-95 shrink-0"
-              >
-                {copiedText === `todo-${note._id}` ? <Check size={12} className="text-sticker-green" /> : <Copy size={12} />}
-                <span>{copiedText === `todo-${note._id}` ? "Copié" : "Copier"}</span>
-              </button>
-            </div>
-            
+          <div>
             {note.todoList.length === 0 ? (
               <p className="text-ink-muted text-base italic">Aucune action concrète identifiée.</p>
             ) : (
@@ -225,6 +167,33 @@ export default function NoteCard({
           </div>
         )}
 
+      </div>
+
+      {/* Footer de la Note Card (Date et Tags) */}
+      <div className="px-6 py-3 border-t border-hairline bg-canvas-soft/10 flex items-center justify-between flex-wrap gap-2 text-xs text-ink-faint shrink-0 select-none">
+        <div className="flex items-center gap-1.5">
+          <Calendar size={12} className="text-ink-muted" />
+          <span>{dateString}</span>
+        </div>
+        
+        {/* Badges de thématiques */}
+        {note.tags && note.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {note.tags.map((t: string) => {
+              const tagInfo = AVAILABLE_TAGS.find((tag) => tag.value === t);
+              if (!tagInfo) return null;
+              return (
+                <span
+                  key={t}
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${tagInfo.bgClass} shadow-soft`}
+                >
+                  <span>{tagInfo.emoji}</span>
+                  <span>{tagInfo.label}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
