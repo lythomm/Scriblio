@@ -122,7 +122,7 @@ export default function NoteCard({
             title="Cliquez pour copier la synthèse"
             className="cursor-pointer group relative active:opacity-75 select-text"
           >
-            <p className="text-ink-secondary text-base leading-relaxed whitespace-pre-wrap font-sans transition-colors group-hover:text-ink">
+            <p className="text-ink-secondary text-base leading-relaxed whitespace-pre-wrap font-editorial transition-colors group-hover:text-ink">
               {note.summary}
             </p>
             {copiedText === `sum-${note._id}` && (

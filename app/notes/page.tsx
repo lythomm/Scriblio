@@ -66,7 +66,7 @@ export default function HistoryPage() {
           {notesApi.filteredNotes.length === 0 ? (
             <div className="bg-canvas border border-hairline border-dashed rounded-lg p-14 text-center text-ink-muted text-base shadow-soft mt-4">
               <FileText size={28} className="text-ink-faint mx-auto mb-3" />
-              <p className="font-semibold text-ink-secondary">Aucune note enregistrée</p>
+              <h3 className="text-base font-bold text-ink-secondary">Aucune note enregistrée</h3>
               <p className="text-sm text-ink-faint mt-1.5 font-sans">
                 {notesApi.selectedTag ? "Aucune note ne correspond à cette thématique." : "Allez sur le tableau de bord pour enregistrer une note vocale."}
               </p>

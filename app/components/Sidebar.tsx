@@ -65,10 +65,10 @@ export default function Sidebar({
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold transition-all duration-150 cursor-pointer ${
                   isActive 
-                    ? "bg-sky-50 text-sky-850 border-l-4 border-primary pl-2 shadow-soft" 
-                    : "text-ink-secondary hover:bg-canvas-soft hover:text-ink"
+                    ? "bg-canvas-soft text-ink shadow-soft" 
+                    : "text-ink-secondary hover:bg-canvas-soft/50 hover:text-ink"
                 }`}
               >
                 <Icon size={18} className={isActive ? "text-primary" : "text-ink-muted"} />

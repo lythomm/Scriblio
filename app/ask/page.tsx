@@ -6,6 +6,7 @@ import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Send, Loader2, MessageSquare, ArrowRight, ExternalLink, Menu } from "lucide-react";
 import Sidebar from "../components/Sidebar";
+import Button from "../components/Button";
 
 interface SourceNote {
   id: string;
@@ -232,7 +233,7 @@ export default function AskPage() {
                 </div>
                 
                 <div className="space-y-2 max-w-md">
-                  <p className="text-base font-bold text-ink-secondary">Posez une question à votre historique</p>
+                  <h3 className="text-lg font-bold text-ink-secondary">Posez une question à votre historique</h3>
                   <p className="text-xs text-ink-faint font-sans leading-relaxed">
                     Scriblio analyse vos synthèses vocales pour formuler une réponse claire et référence automatiquement les notes associées.
                   </p>
@@ -240,17 +241,17 @@ export default function AskPage() {
 
                 {/* Suggestions chips en grille */}
                 <div className="w-full max-w-2xl space-y-3">
-                  <p className="text-[10px] text-ink-faint uppercase font-bold tracking-wider text-left pl-1">Suggestions</p>
+                  <h4 className="text-[10px] text-ink-faint uppercase font-bold tracking-wider text-left pl-1">Suggestions</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {SUGGESTIONS.map((s, idx) => (
-                      <button
+                      <Button
                         key={idx}
                         onClick={() => handleSubmit(s)}
-                        className="text-left py-3.5 px-4.5 rounded-xl border border-hairline bg-canvas hover:bg-canvas-soft text-xs text-ink-secondary font-semibold transition-all duration-150 flex items-center justify-between gap-3 group cursor-pointer shadow-soft hover:scale-[1.01] active:scale-[0.99]"
+                        className="text-left justify-between w-full"
                       >
                         <span className="leading-snug">{s}</span>
                         <ArrowRight size={14} className="text-ink-faint group-hover:text-primary transition-colors shrink-0" />
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -278,7 +279,7 @@ export default function AskPage() {
                       {m.role === "user" ? (
                         <p className="whitespace-pre-wrap">{m.text}</p>
                       ) : (
-                        <div className="space-y-1 font-sans">
+                        <div className="space-y-1 font-editorial">
                           {renderMarkdown(m.text)}
                         </div>
                       )}
