@@ -1,0 +1,19 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  notes: defineTable({
+    userId: v.string(), // ID unique de l'utilisateur propriétaire de la note
+    summary: v.string(), // Résumé / Synthèse
+    todoList: v.array(v.object({ text: v.string(), done: v.boolean() })), // Liste des actions avec statut
+    tags: v.optional(v.array(v.string())), // Catégories thématiques
+    audioStorageId: v.optional(v.id("_storage")), // Stockage optionnel de l'audio
+    createdAt: v.number(), // Date de création
+    embedding: v.optional(v.array(v.float64())), // Embedding sémantique
+  })
+    .index("by_user", ["userId"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 768, // Modèle text-embedding-004 de Gemini
+    }),
+});

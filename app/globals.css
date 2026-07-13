@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+/* Configuration du Thème Notion pour Tailwind CSS v4 */
+@theme {
+  /* Couleurs de marque et accents */
+  --color-primary: #0075de;               /* Bleu Notion */
+  --color-primary-active: #005bab;        /* Bleu pressé */
+  --color-secondary: #213183;             /* Indigo profond "Nuit" */
+
+  /* Palette de stickers décoratifs */
+  --color-sticker-sky: #62aef0;
+  --color-sticker-purple: #d6b6f6;
+  --color-sticker-purple-deep: #391c57;
+  --color-sticker-pink: #ff64c8;
+  --color-sticker-orange: #dd5b00;
+  --color-sticker-orange-deep: #793400;
+  --color-sticker-teal: #2a9d99;
+  --color-sticker-green: #1aae39;
+  --color-sticker-brown: #523410;
+
+  /* Surfaces */
+  --color-canvas-soft: #f6f5f4;           /* Warm paper off-white */
+  --color-canvas: #ffffff;                /* Pure white surface */
+  --color-hairline: #e6e6e6;              /* Bordure hairline 1px */
+
+  /* Typographie */
+  --color-ink: rgba(0, 0, 0, 0.95);       /* Noir Notion */
+  --color-ink-secondary: #31302e;        /* Charcoal chaud */
+  --color-ink-muted: #615d59;            /* Stone */
+  --color-ink-faint: #a39e98;            /* Ash */
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Police d'écriture Notion */
+  --font-sans: Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-canvas-soft);
+    color: var(--color-ink);
+  }
+}
+
+/* Tracking typographique Notion */
+.tracking-display-1 { letter-spacing: -2.125px; }
+.tracking-display-2 { letter-spacing: -1.875px; }
+.tracking-heading-1 { letter-spacing: -1px; }
+.tracking-heading-2 { letter-spacing: -0.625px; }
+.tracking-heading-3 { letter-spacing: -0.25px; }
+.tracking-title { letter-spacing: -0.125px; }
+.tracking-eyebrow { letter-spacing: 0.125px; }
+
+/* Ombres multi-couches subtiles conformes au spec DESIGN.md */
+.shadow-soft {
+  box-shadow: 
+    rgba(0, 0, 0, 0.01) 0px 0.175px 1.041px, 
+    rgba(0, 0, 0, 0.02) 0px 0.8px 2.925px, 
+    rgba(0, 0, 0, 0.027) 0px 2.025px 7.847px, 
+    rgba(0, 0, 0, 0.04) 0px 4px 18px;
+}
+
+.shadow-elevated {
+  box-shadow: rgba(0, 0, 0, 0.05) 0px 23px 52px;
+}
+
+/* Animations d'onde pour l'enregistrement audio */
+@keyframes wave-bounce {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-wave-1 { animation: wave-bounce 0.8s infinite ease-in-out; transform-origin: bottom; }
+.animate-wave-2 { animation: wave-bounce 0.8s infinite ease-in-out 0.15s; transform-origin: bottom; }
+.animate-wave-3 { animation: wave-bounce 0.8s infinite ease-in-out 0.3s; transform-origin: bottom; }
+.animate-wave-4 { animation: wave-bounce 0.8s infinite ease-in-out 0.45s; transform-origin: bottom; }
+.animate-wave-5 { animation: wave-bounce 0.8s infinite ease-in-out 0.6s; transform-origin: bottom; }
+
+/* Animation de pulsation douce pour le bouton micro */
+@keyframes soft-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 117, 222, 0.3);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 8px rgba(0, 117, 222, 0);
+  }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2s infinite ease-in-out;
+}
+
+/* Animation pour l'apparition des Toasts (slide-in depuis le haut) */
+@keyframes fade-in-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
