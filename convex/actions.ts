@@ -1,6 +1,7 @@
 "use node";
 
 import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
@@ -9,12 +10,12 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-// Fonction utilitaire pour exécuter des appels LLM avec retry et fallback de modèles
-async function generateContentWithRetry(
-  ai: GoogleGenAI,
+// Fonction utilitaire pour exécuter des appels LLM avec retry et fallback de modèles sur Groq
+async function generateGroqChatCompletionWithRetry(
+  groq: Groq,
   models: string[],
-  contents: any,
-  config?: any
+  messages: any[],
+  responseFormat?: any
 ) {
   let lastError = null;
   const maxRetries = 2; // 2 tentatives par modèle
@@ -23,14 +24,14 @@ async function generateContentWithRetry(
   for (const model of models) {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        return await ai.models.generateContent({
+        return await groq.chat.completions.create({
           model,
-          contents,
-          config,
+          messages,
+          response_format: responseFormat,
         });
       } catch (err: any) {
         lastError = err;
-        console.warn(`[API AI] Échec tentative ${attempt + 1} avec le modèle ${model}:`, err.message || err);
+        console.warn(`[API Groq] Échec tentative ${attempt + 1} avec le modèle ${model}:`, err.message || err);
         
         // Arrêter les retries sur ce modèle si c'est une erreur client définitive (400, 403, 404)
         const errStr = String(err);
@@ -45,10 +46,11 @@ async function generateContentWithRetry(
       }
     }
   }
-  throw lastError || new Error("Échec de la génération après plusieurs essais et modèles de secours.");
+  throw lastError || new Error("Échec de la génération Groq après plusieurs essais et modèles de secours.");
 }
 
-// Action Convex de traitement de l'audio avec le SDK @google/genai
+
+// Action Convex de traitement de l'audio avec Groq et Gemini
 export const processAudio = action({
   args: {
     audioData: v.bytes(), // Fichier audio sous forme d'ArrayBuffer
@@ -61,14 +63,19 @@ export const processAudio = action({
     if (!userId) {
       throw new Error("Non autorisé. Utilisateur non connecté.");
     }
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
       throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
     }
+    const groqApiKey = process.env.GROQ_API_KEY;
+    if (!groqApiKey) {
+      throw new Error("GROQ_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
+    }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+    const groq = new Groq({ apiKey: groqApiKey });
 
-    // Création d'un fichier temporaire local pour l'upload via l'API Files
+    // Création d'un fichier temporaire local
     const tempDir = os.tmpdir();
     const extension = args.mimeType.split("/")[1] || "webm";
     const tempFileName = `scriblio-${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
@@ -78,35 +85,24 @@ export const processAudio = action({
     const buffer = Buffer.from(args.audioData);
     fs.writeFileSync(tempFilePath, buffer);
 
-    let uploadedFile = null;
-
     try {
-      // Téléverser le fichier sur l'API Files de Google
-      uploadedFile = await ai.files.upload({
-        file: tempFilePath,
-        config: {
-          mimeType: args.mimeType,
-          displayName: tempFileName,
-        },
+      // 1. Transcrire l'audio avec Groq Whisper
+      const transcription = await groq.audio.transcriptions.create({
+        file: fs.createReadStream(tempFilePath),
+        model: "whisper-large-v3-turbo",
       });
 
-      // Appel au modèle Gemini avec fallback et retries
-      const response = await generateContentWithRetry(
-        ai,
-        ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash"],
-        [
-          {
-            fileData: {
-              fileUri: uploadedFile.uri,
-              mimeType: uploadedFile.mimeType,
-            },
-          },
-          {
-            text: "Structure l'enregistrement audio fourni.",
-          },
-        ],
-        {
-          systemInstruction: `Tu es Scriblio, un assistant IA de productivité d'élite.
+      const transcriptText = transcription.text;
+      if (!transcriptText || !transcriptText.trim()) {
+        return {
+          success: false,
+          errorType: "inaudible",
+          message: "Audio incompréhensible ou non audible.",
+        };
+      }
+
+      // 2. Structurer et synthétiser la transcription avec Groq Llama
+      const systemInstruction = `Tu es Scriblio, un assistant IA de productivité d'élite.
 Analyse l'enregistrement audio fourni et structure-le sous la forme d'un objet JSON valide.
 Si l'audio est silencieux, vide, ou totalement incompréhensible, retourne UNIQUEMENT cet objet JSON :
 {
@@ -126,17 +122,24 @@ Règles importantes :
 L'utilisateur est en train de MODIFIER ou COMPLÉTER une note existante. Voici la synthèse actuelle de cette note (à utiliser comme contexte de départ) :
 "${args.existingSummary}"
 
-Prends en compte ce contexte d'origine et fusionne-le de manière cohérente avec les nouvelles consignes ou modifications mentionnées dans le nouvel enregistrement audio. Mets à jour la synthèse ("summary"), conserve ou ajuste la liste de tâches ("todoList") et sélectionne les "tags" correspondants.` : ""),
-          responseMimeType: "application/json",
-        }
+Prends en compte ce contexte d'origine et fusionne-le de manière cohérente avec les nouvelles consignes ou modifications mentionnées dans le nouvel enregistrement audio. Mets à jour la synthèse ("summary"), conserve ou ajuste la liste de tâches ("todoList") et sélectionne les "tags" correspondants.` : "");
+
+      const chatCompletion = await generateGroqChatCompletionWithRetry(
+        groq,
+        ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"],
+        [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: `Voici la transcription de l'audio :\n"${transcriptText}"` }
+        ],
+        { type: "json_object" }
       );
 
-      const textOutput = response.text;
+      const textOutput = chatCompletion.choices[0].message.content;
       if (!textOutput) {
-        throw new Error("L'API Gemini n'a renvoyé aucune réponse textuelle.");
+        throw new Error("L'API Groq n'a renvoyé aucune réponse textuelle.");
       }
 
-      // Analyse et parsing du JSON généré par Gemini
+      // Analyse et parsing du JSON généré
       const parsedResults = JSON.parse(textOutput.trim());
 
       // Coercition robuste de summary en chaîne de caractères
@@ -144,7 +147,6 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
       if (typeof parsedResults.summary === "string") {
         summaryText = parsedResults.summary.trim();
       } else if (Array.isArray(parsedResults.summary)) {
-        // Si l'IA renvoie un tableau de points clés, on les convertit en liste textuelle
         summaryText = parsedResults.summary.map((item: any) => `- ${String(item).trim()}`).join("\n");
       } else if (parsedResults.summary) {
         summaryText = String(parsedResults.summary).trim();
@@ -178,7 +180,6 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
                 done: !!item.done,
               };
             } else if (item) {
-              // Si l'IA renvoie une chaîne simple au lieu d'un objet
               return {
                 text: String(item).trim(),
                 done: false,
@@ -264,35 +265,33 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
       } catch (err) {
         console.error("Impossible de supprimer le fichier temporaire :", err);
       }
-
-      // Nettoyage du fichier sur Google Files API pour des raisons de confidentialité et quotas
-      if (uploadedFile) {
-        try {
-          await ai.files.delete({ name: uploadedFile.name! });
-        } catch (err) {
-          console.error("Impossible de supprimer le fichier temporaire de Google Files API :", err);
-        }
-      }
     }
   },
 });
+
 
 // Action Convex de recherche sémantique (RAG) sur l'historique des notes
 export const askScriblio = action({
   args: {
     query: v.string(),
   },
+
   handler: async (ctx, args): Promise<{ answer: string; sources: { id: string; summary: string; createdAt: number }[] }> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new Error("Non autorisé. Utilisateur non connecté.");
     }
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
       throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
     }
+    const groqApiKey = process.env.GROQ_API_KEY;
+    if (!groqApiKey) {
+      throw new Error("GROQ_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
+    }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+    const groq = new Groq({ apiKey: groqApiKey });
 
     // 1. Calculer l'embedding de la question
     const embedResponse = await ai.models.embedContent({
@@ -352,11 +351,8 @@ export const askScriblio = action({
       year: "numeric",
     });
 
-    // 5. Appeler Gemini pour synthétiser la réponse RAG avec fallback et retries
-    const response = await generateContentWithRetry(
-      ai,
-      ["gemma-4-26b-a4b-it", "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-1.5-flash"],
-      `Tu es Scriblio, un assistant IA de productivité.
+    // 5. Appeler Groq pour synthétiser la réponse RAG
+    const systemPrompt = `Tu es Scriblio, un assistant IA de productivité.
 Réponds à la question posée par l'utilisateur en te basant exclusivement sur le contexte de ses notes vocales personnelles fourni ci-dessous.
 Sois précis, poli et rédiges ta réponse en français de façon naturelle. Si le contexte ne contient pas de réponse adéquate, indique-le poliment.
 Cite impérativement la source de tes affirmations en ajoutant son index (ex: [Note 1] ou [Note 2]) à la fin de tes phrases.
@@ -368,19 +364,35 @@ RÈGLE TEMPORELLE CRITIQUE :
 Fais extrêmement attention aux dates. Compare la date d'aujourd'hui avec la date de création de chaque note. Si l'utilisateur pose une question temporelle (ex: "ce samedi", "cette semaine", "le mois dernier"), filtre mentalement les notes pour ne garder que celles correspondant précisément à la période ciblée. Ignore les tâches ou événements prévus pour d'autres semaines ou dates.
 
 CONTEXTE DE L'UTILISATEUR :
-${contextText}
+${contextText}`;
 
-QUESTION DE L'UTILISATEUR :
-${args.query}`
+    const chatCompletion = await generateGroqChatCompletionWithRetry(
+      groq,
+      ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"],
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: args.query }
+      ]
     );
 
-    return {
-      answer: response.text || "Désolé, je n'ai pas pu formuler de réponse.",
-      sources: matchedNotes.map((n) => ({
+    const answer = chatCompletion.choices[0].message.content || "Désolé, je n'ai pas pu formuler de réponse.";
+
+    // Filtrer pour ne garder que les sources réellement citées par l'assistant
+    const citedSources = matchedNotes
+      .map((n, idx) => ({
         id: n._id,
         summary: n.summary,
         createdAt: n.createdAt,
-      })),
+        index: idx + 1,
+      }))
+      .filter((s) => {
+        const citationPattern = new RegExp(`\\[Note\\s*${s.index}\\]`, "i");
+        return citationPattern.test(answer);
+      });
+
+    return {
+      answer,
+      sources: citedSources,
     };
   },
 });
@@ -431,5 +443,48 @@ export const searchNotesForRAG = action({
     }
 
     return { matchedNotes };
+  },
+});
+
+// Action Convex de simple transcription audio via Groq Whisper
+export const transcribeAudio = action({
+  args: {
+    audioData: v.bytes(),
+    mimeType: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ text: string }> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Non autorisé. Utilisateur non connecté.");
+    }
+    const groqApiKey = process.env.GROQ_API_KEY;
+    if (!groqApiKey) {
+      throw new Error("GROQ_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
+    }
+    const groq = new Groq({ apiKey: groqApiKey });
+
+    const tempDir = os.tmpdir();
+    const extension = args.mimeType.split("/")[1] || "webm";
+    const tempFileName = `scriblio-transcribe-${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+    const tempFilePath = path.join(tempDir, tempFileName);
+
+    const buffer = Buffer.from(args.audioData);
+    fs.writeFileSync(tempFilePath, buffer);
+
+    try {
+      const transcription = await groq.audio.transcriptions.create({
+        file: fs.createReadStream(tempFilePath),
+        model: "whisper-large-v3-turbo",
+      });
+      return { text: transcription.text || "" };
+    } finally {
+      try {
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+      } catch (err) {
+        console.error("Impossible de supprimer le fichier temporaire :", err);
+      }
+    }
   },
 });

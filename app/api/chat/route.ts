@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
@@ -7,17 +7,20 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 export const dynamic = "force-dynamic";
 
 async function generateStreamWithRetry(
-  ai: GoogleGenAI,
+  groq: Groq,
   models: string[],
   contents: string
 ) {
   let lastError = null;
   for (const model of models) {
     try {
-      console.log(`[API Streaming] Tentative d'initialisation du stream avec ${model}`);
-      const responseStream = await ai.models.generateContentStream({
+      console.log(`[API Streaming] Tentative d'initialisation du stream Groq avec ${model}`);
+      const responseStream = await groq.chat.completions.create({
         model,
-        contents,
+        messages: [
+          { role: "user", content: contents }
+        ],
+        stream: true,
       });
       return responseStream;
     } catch (err: any) {
@@ -29,7 +32,7 @@ async function generateStreamWithRetry(
       }
     }
   }
-  throw lastError || new Error("Impossible de démarrer le flux de génération.");
+  throw lastError || new Error("Impossible de démarrer le flux de génération Groq.");
 }
 
 export async function POST(req: Request) {
@@ -45,15 +48,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autorisé. Utilisateur non connecté." }, { status: 401 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "La variable d'environnement GEMINI_API_KEY n'est pas configurée côté Next.js (.env.local)." },
+        { error: "La variable d'environnement GROQ_API_KEY n'est pas configurée côté Next.js (.env.local)." },
         { status: 500 }
       );
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const groq = new Groq({ apiKey });
 
     // Instanciation à chaque requête pour éviter les conditions de concurrence sur l'authentification
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!, {
@@ -117,8 +120,8 @@ QUESTION DE L'UTILISATEUR :
 ${query}`;
 
     // 3. Obtenir le stream avec fallback
-    const models = ["gemma-4-26b-a4b-it", "gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash"];
-    const responseStream = await generateStreamWithRetry(ai, models, systemPrompt);
+    const models = ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.3-70b-versatile"];
+    const responseStream = await generateStreamWithRetry(groq, models, systemPrompt);
 
     // 4. Définir le ReadableStream pour Next.js Response
     const encoder = new TextEncoder();
@@ -127,17 +130,19 @@ ${query}`;
         try {
           // Envoyer d'abord les sources sous forme d'une ligne spéciale préfixée
           const sourcesHeader = {
-            sources: matchedNotes.map((n: any) => ({
+            sources: matchedNotes.map((n: any, idx: number) => ({
               id: n._id,
               summary: n.summary,
               createdAt: n.createdAt,
+              index: idx + 1,
             })),
           };
           controller.enqueue(encoder.encode(`__SOURCES__:${JSON.stringify(sourcesHeader)}\n`));
 
           for await (const chunk of responseStream) {
-            if (chunk.text) {
-              controller.enqueue(encoder.encode(chunk.text));
+            const content = chunk.choices[0]?.delta?.content || "";
+            if (content) {
+              controller.enqueue(encoder.encode(content));
             }
           }
           controller.close();

@@ -4,14 +4,22 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Send, Loader2, MessageSquare, ArrowRight, ExternalLink, Menu } from "lucide-react";
+import { Send, Loader2, MessageSquare, ArrowRight, ExternalLink, Menu, Mic, Square, Trash2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Button from "../components/Button";
+import ToastContainer from "../components/ToastContainer";
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: "success" | "error" | "warning";
+}
 
 interface SourceNote {
   id: string;
   summary: string;
   createdAt: number;
+  index?: number;
 }
 
 interface Message {
@@ -77,12 +85,129 @@ const renderMarkdown = (text: string) => {
 
 export default function AskPage() {
   const askScriblioAction = useAction(api.actions.askScriblio);
+  const transcribeAudioAction = useAction(api.actions.transcribeAudio);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Déclencher une notification Toast
+  const showToast = (message: string, type: "success" | "error" | "warning") => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  // États pour l'enregistrement vocal
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isCancelledRef = useRef(false);
+
+  // Compteur de durée d'enregistrement
+  useEffect(() => {
+    if (isRecording) {
+      timerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setRecordingDuration(0);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isRecording]);
+
+  const startRecording = async () => {
+    audioChunksRef.current = [];
+    isCancelledRef.current = false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        if (isCancelledRef.current) {
+          isCancelledRef.current = false;
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        stream.getTracks().forEach((track) => track.stop());
+        await handleAudioTranscription(audioBlob);
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(200);
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Erreur accès micro :", err);
+      alert("Impossible d'accéder au microphone.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      isCancelledRef.current = true;
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleAudioTranscription = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const result = await transcribeAudioAction({
+        audioData: arrayBuffer,
+        mimeType: audioBlob.type || "audio/webm",
+      });
+      
+      const rawText = result.text || "";
+      const cleanedText = rawText.replace(/[\s.,/#!$%^&*;:{}=\-_`~()]/g, "");
+
+      if (cleanedText.length > 0) {
+        const queryText = rawText.trim();
+        setInput("");
+        await handleSubmit(queryText);
+      } else {
+        showToast("Audio incompréhensible ou non audible.", "error");
+      }
+    } catch (err) {
+      console.error("Erreur transcription :", err);
+      showToast("Impossible de transcrire l'audio. Réessayez.", "error");
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const formatTime = (secs: number) => {
+    const minutes = Math.floor(secs / 60);
+    const seconds = secs % 60;
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  };
 
 
 
@@ -166,6 +291,19 @@ export default function AskPage() {
           });
         }
       }
+
+      // Filtrer pour ne garder que les sources réellement citées par l'assistant
+      setMessages((prev) => {
+        const updated = [...prev];
+        const lastMessage = updated[updated.length - 1];
+        if (lastMessage && lastMessage.role === "assistant" && lastMessage.sources) {
+          lastMessage.sources = lastMessage.sources.filter((s) => {
+            const citationPattern = new RegExp(`\\[Note\\s*${s.index}\\]`, "i");
+            return citationPattern.test(lastMessage.text);
+          });
+        }
+        return updated;
+      });
     } catch (err) {
       console.error(err);
       setMessages((prev) => {
@@ -272,7 +410,7 @@ export default function AskPage() {
                       {m.role === "user" ? (
                         <p className="whitespace-pre-wrap">{m.text}</p>
                       ) : (
-                        <div className="space-y-1 font-editorial">
+                        <div className="space-y-1 font-sans">
                           {renderMarkdown(m.text)}
                         </div>
                       )}
@@ -289,7 +427,7 @@ export default function AskPage() {
                                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-canvas-soft border border-hairline text-xs font-semibold text-sky-850 hover:bg-sky-50 hover:border-sky-200 transition-colors cursor-pointer"
                               >
                                 <ExternalLink size={10} />
-                                <span>[Note {sIdx + 1}]</span>
+                                <span>[Note {s.index ?? (sIdx + 1)}]</span>
                               </Link>
                             ))}
                           </div>
@@ -322,26 +460,81 @@ export default function AskPage() {
               }}
               className="flex gap-3 items-center"
             >
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={isLoading}
-                placeholder="Posez votre question sur vos notes vocales..."
-                className="flex-1 px-4 py-3 bg-canvas-soft border border-hairline rounded-xl text-sm text-ink focus:outline-none focus:border-primary disabled:opacity-50 transition-all placeholder:text-ink-faint"
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading}
-                className="p-3 rounded-xl bg-primary hover:bg-primary-active text-white disabled:bg-neutral-100 disabled:text-neutral-400 transition-colors cursor-pointer shadow-soft flex items-center justify-center active:scale-95"
-              >
-                <Send size={16} />
-              </button>
+              {isRecording ? (
+                <>
+                  <div className="flex-1 flex gap-2 items-center bg-canvas-soft border border-hairline rounded-xl px-4 py-3">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shrink-0" />
+                    <span className="text-sm font-semibold text-ink-muted">Enregistrement... ({formatTime(recordingDuration)})</span>
+                    <div className="flex items-center gap-0.5 h-3 ml-2 flex-1">
+                      <span className="w-0.5 h-3 rounded-full bg-ink-faint/80 animate-wave-1" />
+                      <span className="w-0.5 h-3 rounded-full bg-ink-faint/80 animate-wave-2" />
+                      <span className="w-0.5 h-3 rounded-full bg-ink-faint/80 animate-wave-3" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={cancelRecording}
+                      title="Annuler"
+                      className="p-1 text-ink-muted hover:text-red-600 transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    className="p-3 rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-soft flex items-center justify-center active:scale-95 cursor-pointer shrink-0"
+                  >
+                    <Square size={16} fill="white" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={isTranscribing ? "Transcription de votre voix..." : input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={isLoading || isTranscribing}
+                    placeholder="Posez votre question sur vos notes vocales..."
+                    className="flex-1 px-4 py-3 bg-canvas-soft border border-hairline rounded-xl text-sm text-ink focus:outline-none focus:border-primary disabled:opacity-50 transition-all placeholder:text-ink-faint"
+                  />
+                  {isTranscribing ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="p-3 rounded-xl bg-neutral-100 text-neutral-400 flex items-center justify-center shrink-0"
+                    >
+                      <Loader2 className="animate-spin text-primary" size={16} />
+                    </button>
+                  ) : input.trim() === "" ? (
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      disabled={isLoading}
+                      title="Dicter ma question"
+                      className="p-3 rounded-xl bg-primary hover:bg-primary-active text-white disabled:bg-neutral-100 disabled:text-neutral-400 transition-colors cursor-pointer shadow-soft flex items-center justify-center active:scale-95 shrink-0"
+                    >
+                      <Mic size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      title="Envoyer la question"
+                      className="p-3 rounded-xl bg-primary hover:bg-primary-active text-white disabled:bg-neutral-100 disabled:text-neutral-400 transition-colors cursor-pointer shadow-soft flex items-center justify-center active:scale-95 shrink-0"
+                    >
+                      <Send size={16} />
+                    </button>
+                  )}
+                </>
+              )}
             </form>
           </div>
         </div>
 
       </div>
+      
+      {/* Notifications Toast */}
+      <ToastContainer toasts={toasts} />
     </main>
   </div>
   );
