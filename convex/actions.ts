@@ -302,7 +302,7 @@ export const askScriblio = action({
 
     // 5. Appeler Gemini pour synthétiser la réponse RAG
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemma-4-26b-a4b-it",
       contents: `Tu es Scriblio, un assistant IA de productivité.
 Réponds à la question posée par l'utilisateur en te basant exclusivement sur le contexte de ses notes vocales personnelles fourni ci-dessous.
 Sois précis, poli et rédiges ta réponse en français de façon naturelle. Si le contexte ne contient pas de réponse adéquate, indique-le poliment.
