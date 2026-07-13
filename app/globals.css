@@ -132,3 +132,38 @@
 .animate-fade-in-down {
   animation: fade-in-down 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Blocage orientation paysage sur mobile */
+.landscape-lock {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background-color: var(--color-canvas-soft);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.landscape-lock svg {
+  width: 48px;
+  height: 48px;
+  color: var(--color-ink-muted);
+  animation: rotate-phone 1.5s ease-in-out infinite;
+}
+
+@keyframes rotate-phone {
+  0%, 100% { transform: rotate(90deg); }
+  50% { transform: rotate(0deg); }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-lock {
+    display: flex;
+  }
+}
