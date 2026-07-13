@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -114,6 +114,69 @@ export const getNoteById = query({
 
     // Règle 13 : Validation de propriété
     if (note.userId !== userId) return null;
+
+    return note;
+  },
+});
+
+// Mutations et Requêtes Internes pour les appels depuis les Actions (contexte d'auth non transmis par défaut)
+export const internalCreateNote = internalMutation({
+  args: {
+    summary: v.string(),
+    tags: v.array(v.string()),
+    audioStorageId: v.optional(v.id("_storage")),
+    embedding: v.optional(v.array(v.float64())),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const noteId = await ctx.db.insert("notes", {
+      userId: args.userId,
+      summary: args.summary,
+      tags: args.tags,
+      audioStorageId: args.audioStorageId,
+      createdAt: Date.now(),
+      embedding: args.embedding,
+    });
+    return noteId;
+  },
+});
+
+export const internalUpdateNote = internalMutation({
+  args: {
+    id: v.id("notes"),
+    summary: v.string(),
+    tags: v.array(v.string()),
+    embedding: v.optional(v.array(v.float64())),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const note = await ctx.db.get(args.id);
+    if (!note) {
+      throw new Error("Note non trouvée.");
+    }
+    
+    // Règle 13 : Validation d'autorisation de propriété
+    if (note.userId !== args.userId) {
+      throw new Error("Action non autorisée.");
+    }
+
+    await ctx.db.patch(args.id, {
+      summary: args.summary,
+      tags: args.tags,
+      embedding: args.embedding,
+    });
+    return args.id;
+  },
+});
+
+export const internalGetNoteById = internalQuery({
+  args: { id: v.id("notes"), userId: v.string() },
+  handler: async (ctx, args) => {
+    const note = await ctx.db.get(args.id);
+    if (!note) return null;
+
+    // Règle 13 : Validation de propriété
+    if (note.userId !== args.userId) return null;
 
     return note;
   },

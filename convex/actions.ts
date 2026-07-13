@@ -4,7 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import Groq from "groq-sdk";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import * as fs from "fs";
 import * as path from "path";
@@ -207,17 +207,19 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
       // Sauvegarde des résultats en base de données via mutation (création ou modification)
       let noteId;
       if (args.noteId) {
-        noteId = await ctx.runMutation(api.notes.updateNote, {
+        noteId = await ctx.runMutation(internal.notes.internalUpdateNote, {
           id: args.noteId,
           summary: summaryText,
           tags: tagsArray,
           embedding: embeddingArray,
+          userId,
         });
       } else {
-        noteId = await ctx.runMutation(api.notes.createNote, {
+        noteId = await ctx.runMutation(internal.notes.internalCreateNote, {
           summary: summaryText,
           tags: tagsArray,
           embedding: embeddingArray,
+          userId,
         });
       }
 
@@ -289,7 +291,7 @@ export const askScriblio = action({
     // 3. Récupérer les documents correspondants
     const matchedNotes = [];
     for (const result of searchResults) {
-      const note = await ctx.runQuery(api.notes.getNoteById, { id: result._id });
+      const note = await ctx.runQuery(internal.notes.internalGetNoteById, { id: result._id, userId });
       if (note) {
         matchedNotes.push(note);
       }
@@ -393,7 +395,7 @@ export const searchNotesForRAG = action({
     // 3. Récupérer les documents correspondants
     const matchedNotes = [];
     for (const result of searchResults) {
-      const note = await ctx.runQuery(api.notes.getNoteById, { id: result._id });
+      const note = await ctx.runQuery(internal.notes.internalGetNoteById, { id: result._id, userId });
       if (note) {
         matchedNotes.push(note);
       }
