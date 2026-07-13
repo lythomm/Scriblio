@@ -17,7 +17,7 @@ export const processAudio = action({
     noteId: v.optional(v.id("notes")),
     existingSummary: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ success: boolean; noteId?: string; data?: any; errorType?: string; message?: string }> => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
@@ -142,7 +142,7 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
             }
             return null;
           })
-          .filter((item): item is { text: string; done: boolean } => item !== null && item.text !== "");
+          .filter((item: any): item is { text: string; done: boolean } => item !== null && item.text !== "");
       } else if (typeof parsedResults.todoList === "string" && parsedResults.todoList.trim() !== "") {
         todoListArray = [{ text: parsedResults.todoList.trim(), done: false }];
       }
@@ -226,7 +226,7 @@ Prends en compte ce contexte d'origine et fusionne-le de manière cohérente ave
       // Nettoyage du fichier sur Google Files API pour des raisons de confidentialité et quotas
       if (uploadedFile) {
         try {
-          await ai.files.delete({ name: uploadedFile.name });
+          await ai.files.delete({ name: uploadedFile.name! });
         } catch (err) {
           console.error("Impossible de supprimer le fichier temporaire de Google Files API :", err);
         }
@@ -241,7 +241,7 @@ export const askScriblio = action({
     userId: v.string(),
     query: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ answer: string; sources: { id: string; summary: string; createdAt: number }[] }> => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY n'est pas configuré dans les variables d'environnement Convex.");
