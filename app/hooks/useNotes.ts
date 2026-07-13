@@ -283,6 +283,18 @@ export function useNotes() {
     showToast("Modification annulée.", "warning");
   };
 
+  // Annuler l'enregistrement en cours
+  const cancelRecording = () => {
+    isCancelledRef.current = true;
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+    modifyingNoteRef.current = null;
+    setModifyingNote(null);
+    showToast("Enregistrement annulé.", "warning");
+  };
+
   return {
     userId,
     notes: notes as Note[],
@@ -312,5 +324,6 @@ export function useNotes() {
     setNoteActiveTab,
     startModifyingNote,
     cancelModifyingNote,
+    cancelRecording,
   };
 }

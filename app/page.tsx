@@ -118,6 +118,7 @@ export default function Home() {
         startRecording={notesApi.startRecording}
         stopRecording={notesApi.stopRecording}
         cancelModifyingNote={notesApi.cancelModifyingNote}
+        cancelRecording={notesApi.cancelRecording}
       />
 
       {/* Dialogue Modal de Confirmation de Suppression */}

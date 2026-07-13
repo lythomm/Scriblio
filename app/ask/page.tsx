@@ -181,7 +181,7 @@ export default function AskPage() {
                 {isLoading && (
                   <div className="flex items-center gap-2 text-xs text-ink-faint pl-2 animate-pulse">
                     <Loader2 className="animate-spin text-primary" size={14} />
-                    <span>Scriblio formule une réponse...</span>
+                    <span>Scriblio fouille les notes...</span>
                   </div>
                 )}
                 <div ref={chatEndRef} />
