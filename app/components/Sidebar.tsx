@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Mic, FileText, MessageSquare, X, LogOut } from "lucide-react";
+import { Mic, FileText, MessageSquare, X, LogOut, Network } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -22,6 +22,7 @@ export default function Sidebar({
     { name: "Tableau de Bord", href: "/", icon: Mic },
     { name: "Mes notes", href: "/notes", icon: FileText },
     { name: "Poser une question", href: "/ask", icon: MessageSquare },
+    { name: "Tableau Blanc", href: "/whiteboard", icon: Network },
   ];
 
   return (

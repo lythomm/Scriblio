@@ -18,5 +18,17 @@ export default defineSchema({
       vectorField: "embedding",
       dimensions: 768, // Modèle text-embedding-004 de Gemini
     }),
+  mindMaps: defineTable({
+    title: v.string(),
+    userId: v.string(),
+    createdAt: v.number(),
+  }).index("by_user", ["userId"]),
+  nodes: defineTable({
+    mindMapId: v.id("mindMaps"),
+    parentId: v.optional(v.string()), // L'ID du parent (géré par Gemini ou l'UI)
+    label: v.string(),
+    positionX: v.number(),
+    positionY: v.number(),
+  }).index("by_mindMapId", ["mindMapId"]),
 });
 
