@@ -29,6 +29,7 @@ export default defineSchema({
     label: v.string(),
     positionX: v.number(),
     positionY: v.number(),
+    color: v.optional(v.string()), // Couleur pastel optionnelle
   }).index("by_mindMapId", ["mindMapId"]),
 });
 

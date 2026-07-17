@@ -108,6 +108,7 @@ export const createNode = mutation({
     parentId: v.optional(v.string()),
     positionX: v.optional(v.number()),
     positionY: v.optional(v.number()),
+    color: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -122,6 +123,7 @@ export const createNode = mutation({
       label: args.label,
       positionX: args.positionX ?? 0,
       positionY: args.positionY ?? 0,
+      color: args.color,
     });
 
     return nodeId;
@@ -145,6 +147,27 @@ export const updateNode = mutation({
     if (!mindMap || mindMap.userId !== userId) throw new Error("Non autorisé.");
 
     await ctx.db.patch(args.id, { label: args.label });
+    return args.id;
+  },
+});
+
+// Mutation pour modifier la couleur d'un nœud
+export const updateNodeColor = mutation({
+  args: {
+    id: v.id("nodes"),
+    color: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Non autorisé.");
+
+    const node = await ctx.db.get(args.id);
+    if (!node) throw new Error("Nœud non trouvé.");
+
+    const mindMap = await ctx.db.get(node.mindMapId);
+    if (!mindMap || mindMap.userId !== userId) throw new Error("Non autorisé.");
+
+    await ctx.db.patch(args.id, { color: args.color });
     return args.id;
   },
 });
