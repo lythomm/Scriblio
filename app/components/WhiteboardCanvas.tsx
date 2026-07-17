@@ -199,11 +199,14 @@ export default function WhiteboardCanvas({
     const g = new dagre.graphlib.Graph();
     g.setDefaultEdgeLabel(() => ({}));
 
-    // Configurer le graphe de gauche à droite (LR)
-    g.setGraph({ rankdir: "LR", nodesep: 50, ranksep: 100 });
+    // Rendre le schéma plus compact horizontalement et verticalement
+    g.setGraph({ rankdir: "LR", nodesep: 35, ranksep: 75 });
 
     currentNodes.forEach((node) => {
-      g.setNode(node.id, { width: 220, height: 70 });
+      const label = (node.data as any)?.label || "";
+      const w = 240; // largeur moyenne d'un nœud (entre 200px et 280px)
+      const h = 40 + (Math.ceil(label.length / 26) * 18); // hauteur estimée selon le texte
+      g.setNode(node.id, { width: w, height: h });
     });
 
     currentEdges.forEach((edge) => {
@@ -214,11 +217,14 @@ export default function WhiteboardCanvas({
 
     return currentNodes.map((node) => {
       const nodeWithPosition = g.node(node.id);
+      const label = (node.data as any)?.label || "";
+      const w = 240;
+      const h = 40 + (Math.ceil(label.length / 26) * 18);
       return {
         ...node,
         position: {
-          x: nodeWithPosition.x - 110,
-          y: nodeWithPosition.y - 35,
+          x: nodeWithPosition.x - w / 2,
+          y: nodeWithPosition.y - h / 2,
         },
       };
     });
